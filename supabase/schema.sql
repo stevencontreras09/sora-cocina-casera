@@ -126,21 +126,27 @@ CREATE TABLE IF NOT EXISTS public.client_addresses (
 ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.client_addresses ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Lectura de clientes para usuarios autenticados" ON public.clients;
 CREATE POLICY "Lectura de clientes para usuarios autenticados"
     ON public.clients FOR SELECT
-    USING (auth.role() = 'authenticated');
+    USING (true);
 
+DROP POLICY IF EXISTS "Escritura de clientes para usuarios autenticados" ON public.clients;
 CREATE POLICY "Escritura de clientes para usuarios autenticados"
     ON public.clients FOR ALL
-    USING (auth.role() = 'authenticated');
+    USING (true)
+    WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Lectura de direcciones para usuarios autenticados" ON public.client_addresses;
 CREATE POLICY "Lectura de direcciones para usuarios autenticados"
     ON public.client_addresses FOR SELECT
-    USING (auth.role() = 'authenticated');
+    USING (true);
 
+DROP POLICY IF EXISTS "Escritura de direcciones para usuarios autenticados" ON public.client_addresses;
 CREATE POLICY "Escritura de direcciones para usuarios autenticados"
     ON public.client_addresses FOR ALL
-    USING (auth.role() = 'authenticated');
+    USING (true)
+    WITH CHECK (true);
 
 -- ==============================================================================
 -- 5. TABLA 'expenses' (Control y Registro de Gastos)
