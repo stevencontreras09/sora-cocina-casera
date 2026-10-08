@@ -4,7 +4,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { AppNavigation } from '@/components/layout/AppNavigation';
 import { useAuth } from '@/context/AuthContext';
 import { createClient } from '@/lib/supabase/client';
-import { Order, OrderStatus } from '@/types/database.types';
+import { Order } from '@/types/database.types';
+import { formatCurrency, cleanPhoneNumber } from '@/lib/utils';
 import {
   Truck,
   Phone,
@@ -14,91 +15,18 @@ import {
   Compass,
   CheckCircle2,
   Clock,
-  DollarSign,
   AlertTriangle,
   RefreshCw,
-  LogOut,
-  ChevronRight,
-  ShieldCheck,
   Package,
   Layers,
-  Sparkles,
-  ExternalLink,
 } from 'lucide-react';
 
-// Pedidos iniciales optimizados para reparto en ruta con coordenadas GPS reales en Santiago
-const DEMO_ACTIVE_ORDERS: Order[] = [
-  {
-    id: 'ord-501',
-    order_number: 'SORA-501',
-    client_id: 'cli-001',
-    client_name: 'Camila Valenzuela',
-    client_phone: '+56987654321',
-    address: 'Av. Andrés Bello 2457, Depto 604, Providencia',
-    address_reference: 'Edificio ladrillo frente al río, timbre 604 en conserjería. Dejar con Don Carlos.',
-    latitude: -33.4215,
-    longitude: -70.6128,
-    items: [
-      { id: '1', name: 'Pastel de Choclo Casero', quantity: 2, price: 9500, subtotal: 19000 },
-      { id: '2', name: 'Ensalada a la Chilena', quantity: 1, price: 3500, subtotal: 3500 },
-      { id: '3', name: 'Mote con Huesillo (500cc)', quantity: 2, price: 2900, subtotal: 5800 },
-    ],
-    total: 28300,
-    payment_method: 'transferencia',
-    payment_status: 'pagado',
-    status: 'En Camino',
-    delivery_user_name: 'Repartidor Móvil',
-    created_at: '13:10',
-  },
-  {
-    id: 'ord-502',
-    order_number: 'SORA-502',
-    client_id: 'cli-002',
-    client_name: 'Felipe Contreras',
-    client_phone: '+56976543210',
-    address: 'Calle Rancagua 0180, Providencia',
-    address_reference: 'Casa blanca de un piso, rejas negras altas, timbre al fondo del pasillo.',
-    latitude: -33.4411,
-    longitude: -70.6318,
-    items: [
-      { id: '4', name: 'Cazuela de Vacuno con Choclo', quantity: 1, price: 8900, subtotal: 8900 },
-      { id: '5', name: 'Plateada al Horno con Puré', quantity: 1, price: 10900, subtotal: 10900 },
-    ],
-    total: 19800,
-    payment_method: 'efectivo',
-    payment_status: 'cobrar_contra_entrega',
-    status: 'Pendiente',
-    delivery_user_name: 'Repartidor Móvil',
-    created_at: '13:25',
-  },
-  {
-    id: 'ord-503',
-    order_number: 'SORA-503',
-    client_id: 'cli-003',
-    client_name: 'Mariana Henríquez',
-    client_phone: '+56965432109',
-    address: 'Av. Italia 1580, Local 3, Ñuñoa',
-    address_reference: 'Boulevard Barrio Italia, local de cerámica artesanal al fondo.',
-    latitude: -33.4485,
-    longitude: -70.6247,
-    items: [
-      { id: '6', name: 'Lentejas con Longaniza Artesanal x2', quantity: 2, price: 7900, subtotal: 15800 },
-      { id: '7', name: 'Pan Amasado Casero (Bolsa 4 unid)', quantity: 2, price: 2500, subtotal: 5000 },
-    ],
-    total: 20800,
-    payment_method: 'efectivo',
-    payment_status: 'cobrar_contra_entrega',
-    status: 'En Preparacion',
-    delivery_user_name: 'Repartidor Móvil',
-    created_at: '13:35',
-  },
-];
-
 export default function DeliveryMobilePage() {
-  const { user, profile, role, signOut } = useAuth();
+  const { user, profile, role } = useAuth();
   const supabase = useMemo(() => createClient(), []);
 
-  const [orders, setOrders] = useState<Order[]>(DEMO_ACTIVE_ORDERS);
+  // Lista limpia inicial sin datos ficticios
+  const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'activos' | 'historial'>('activos');
 
@@ -113,21 +41,18 @@ export default function DeliveryMobilePage() {
     try {
       let query = supabase.from('orders').select('*');
 
-      // Si el rol es 'delivery', filtrar solo los asignados al usuario logueado
+      // Si el rol es 'delivery', filtrar solo los asignados a este repartidor
       if (role === 'delivery' && user?.id) {
         query = query.eq('delivery_user_id', user.id);
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });
 
-      if (!error && data && data.length > 0) {
+      if (!error && data) {
         setOrders(data as Order[]);
-      } else {
-        // Fallback a demo orders
-        console.warn('Cargando pedidos de demostración activos');
       }
     } catch (err) {
-      console.warn('Modo sin conexión activa en Supabase');
+      console.warn('Conexión inicial de delivery');
     } finally {
       setIsLoading(false);
     }
@@ -138,19 +63,17 @@ export default function DeliveryMobilePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, role, supabase]);
 
-  // Normalizar estado
   const isStatusActive = (st: string) => {
-    const s = st.toLowerCase().trim();
+    const s = (st || '').toLowerCase().trim();
     return s === 'pendiente' || s === 'en preparacion' || s === 'en camino';
   };
 
-  // Filtrar pedidos según pestaña
   const activeOrders = useMemo(() => {
     return orders.filter((o) => isStatusActive(o.status));
   }, [orders]);
 
   const deliveredOrders = useMemo(() => {
-    return orders.filter((o) => o.status.toLowerCase() === 'entregado');
+    return orders.filter((o) => (o.status || '').toLowerCase() === 'entregado');
   }, [orders]);
 
   // 2. Acción: Iniciar Ruta (cambia estado a 'En Camino')
@@ -165,9 +88,7 @@ export default function DeliveryMobilePage() {
     }
 
     setOrders((prev) =>
-      prev.map((o) =>
-        o.id === orderId ? { ...o, status: 'En Camino' } : o
-      )
+      prev.map((o) => (o.id === orderId ? { ...o, status: 'En Camino' } : o))
     );
 
     setSuccessBanner('¡Ruta iniciada! El cliente sabe que vas en camino.');
@@ -203,9 +124,9 @@ export default function DeliveryMobilePage() {
 
   return (
     <AppNavigation>
-      <div className="max-w-md mx-auto space-y-4 pb-12 sm:max-w-2xl">
-        {/* CABECERA ERGONÓMICA MOBILE-FIRST PARA REPARTIDOR */}
-        <div className="bg-white/90 backdrop-blur-md rounded-3xl p-4 sm:p-5 border border-border-sora shadow-sora sticky top-16 sm:top-4 z-20">
+      <div className="max-w-md mx-auto space-y-4 pb-12 sm:max-w-xl md:max-w-2xl">
+        {/* CABECERA ERGONÓMICA PARA REPARTIDOR (IPAD Y MÓVIL) */}
+        <div className="bg-white/95 backdrop-blur-md rounded-3xl p-4 sm:p-5 border border-border-sora shadow-sora sticky top-16 lg:top-4 z-20">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="w-12 h-12 rounded-2xl bg-primary-sora text-white flex items-center justify-center shadow-md shadow-primary-sora/25 flex-shrink-0">
@@ -216,6 +137,7 @@ export default function DeliveryMobilePage() {
                   <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
                     Repartidor en Ruta
                   </span>
+                  <span className="text-[10px] text-text-sora/40 font-mono">DOP (RD$)</span>
                 </div>
                 <h1 className="font-serif font-bold text-lg text-text-sora truncate leading-tight mt-0.5">
                   {profile?.full_name || 'Repartidor Sora'}
@@ -226,7 +148,6 @@ export default function DeliveryMobilePage() {
               </div>
             </div>
 
-            {/* Botón de refresco rápido con el pulgar */}
             <button
               onClick={loadAssignedOrders}
               disabled={isLoading}
@@ -238,11 +159,11 @@ export default function DeliveryMobilePage() {
             </button>
           </div>
 
-          {/* Selector de pestañas ergonómico (Botones Grandes) */}
+          {/* Pestañas ergonómicas */}
           <div className="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-border-sora">
             <button
               onClick={() => setActiveTab('activos')}
-              className={`py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 ${
+              className={`py-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 ${
                 activeTab === 'activos'
                   ? 'bg-primary-sora text-white shadow-sm'
                   : 'bg-bg-sora/60 text-text-sora/70 hover:bg-bg-sora'
@@ -253,7 +174,7 @@ export default function DeliveryMobilePage() {
             </button>
             <button
               onClick={() => setActiveTab('historial')}
-              className={`py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 ${
+              className={`py-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 ${
                 activeTab === 'historial'
                   ? 'bg-primary-sora text-white shadow-sm'
                   : 'bg-bg-sora/60 text-text-sora/70 hover:bg-bg-sora'
@@ -276,19 +197,13 @@ export default function DeliveryMobilePage() {
         {/* LISTADO DE PEDIDOS ACTIVOS EN RUTA */}
         {activeTab === 'activos' && (
           <div className="space-y-4">
-            {activeOrders.map((order, idx) => {
-              const cleanPhone = order.client_phone.replace(/[^0-9]/g, '');
+            {activeOrders.map((order) => {
+              const cleanPhone = cleanPhoneNumber(order.client_phone);
               const clientFirstName = order.client_name.split(' ')[0];
               const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
                 `Hola ${clientFirstName}, soy el delivery de Sora Cocina Casera, voy en camino con tu pedido.`
               )}`;
               const callUrl = `tel:${cleanPhone}`;
-
-              // URLs de navegación GPS directa
-              const destinationCoord =
-                order.latitude && order.longitude
-                  ? `${order.latitude},${order.longitude}`
-                  : encodeURIComponent(order.address);
 
               const googleMapsUrl =
                 order.latitude && order.longitude
@@ -301,7 +216,7 @@ export default function DeliveryMobilePage() {
                   : `https://waze.com/ul?q=${encodeURIComponent(order.address)}&navigate=yes`;
 
               const isPaid = order.payment_status === 'pagado';
-              const isEnCamino = order.status.toLowerCase() === 'en camino';
+              const isEnCamino = (order.status || '').toLowerCase() === 'en camino';
 
               return (
                 <div
@@ -310,7 +225,7 @@ export default function DeliveryMobilePage() {
                     isEnCamino ? 'border-primary-sora/60 ring-2 ring-primary-sora/10' : 'border-border-sora'
                   }`}
                 >
-                  {/* FILA 1: PEDIDO # Y BADGE DESTACADO DE PAGO (PAGADO vs COBRAR: $XXX) */}
+                  {/* BADGE DESTACADO DE PAGO EN MONEDA DOP */}
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center space-x-2 min-w-0">
                       <span className="font-mono text-xs font-bold text-primary-sora bg-bg-sora px-2.5 py-1 rounded-xl border border-border-sora">
@@ -321,27 +236,25 @@ export default function DeliveryMobilePage() {
                       </span>
                     </div>
 
-                    {/* INDICADOR DESTACADO REQUERIDO: "PAGADO" (verde) o "COBRAR: $XXX" (terracota alerta) */}
                     {isPaid ? (
-                      <div className="inline-flex items-center px-3.5 py-1.5 rounded-xl bg-emerald-500 text-white font-bold text-xs tracking-wide shadow-sm shadow-emerald-500/20">
+                      <div className="inline-flex items-center px-3.5 py-1.5 rounded-xl bg-emerald-500 text-white font-bold text-xs tracking-wide shadow-sm">
                         <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
                         <span>PAGADO</span>
                       </div>
                     ) : (
-                      <div className="inline-flex items-center px-3.5 py-1.5 rounded-xl bg-primary-sora text-white font-bold text-xs tracking-wide shadow-sm shadow-primary-sora/30 animate-pulse">
+                      <div className="inline-flex items-center px-3.5 py-1.5 rounded-xl bg-primary-sora text-white font-bold text-xs tracking-wide shadow-sm animate-pulse">
                         <AlertTriangle className="w-3.5 h-3.5 mr-1" />
-                        <span>COBRAR: ${order.total.toLocaleString('es-CL')}</span>
+                        <span>COBRAR: {formatCurrency(parseFloat(order.total as any) || 0)}</span>
                       </div>
                     )}
                   </div>
 
-                  {/* FILA 2: CLIENTE Y DETALLE DE PRODUCTOS */}
+                  {/* CLIENTE Y PRODUCTOS */}
                   <div className="space-y-1.5">
                     <h2 className="font-serif font-bold text-xl text-text-sora">
                       {order.client_name}
                     </h2>
 
-                    {/* Detalle de Productos */}
                     <div className="p-3 rounded-2xl bg-bg-sora/60 border border-border-sora/80 space-y-1">
                       <div className="flex items-center space-x-1 text-[10px] uppercase font-bold text-text-sora/50 tracking-wider">
                         <Package className="w-3 h-3" />
@@ -353,7 +266,7 @@ export default function DeliveryMobilePage() {
                             <div key={idx} className="flex justify-between">
                               <span>• {it.quantity}x {it.name}</span>
                               <span className="font-mono text-text-sora/60 text-[11px]">
-                                ${it.subtotal.toLocaleString('es-CL')}
+                                {formatCurrency(it.subtotal)}
                               </span>
                             </div>
                           ))
@@ -364,7 +277,7 @@ export default function DeliveryMobilePage() {
                     </div>
                   </div>
 
-                  {/* FILA 3: DIRECCIÓN TEXTUAL Y NOTAS DE REFERENCIA */}
+                  {/* DIRECCIÓN Y REFERENCIAS */}
                   <div className="space-y-1.5 text-xs">
                     <div className="flex items-start space-x-2 text-text-sora">
                       <MapPin className="w-4 h-4 text-primary-sora flex-shrink-0 mt-0.5" />
@@ -383,13 +296,12 @@ export default function DeliveryMobilePage() {
                     )}
                   </div>
 
-                  {/* FILA 4: NAVEGACIÓN GPS DE UN SOLO TOQUE (GOOGLE MAPS Y WAZE) */}
+                  {/* NAVEGACIÓN GPS (GOOGLE MAPS Y WAZE) */}
                   <div className="pt-1 space-y-2">
                     <p className="text-[10px] font-bold text-text-sora/50 uppercase tracking-wider">
-                      Navegación GPS con coordenadas
+                      Navegación GPS con un solo toque
                     </p>
                     <div className="grid grid-cols-2 gap-2.5">
-                      {/* BOTÓN GOOGLE MAPS */}
                       <a
                         href={googleMapsUrl}
                         target="_blank"
@@ -400,7 +312,6 @@ export default function DeliveryMobilePage() {
                         <span>Google Maps</span>
                       </a>
 
-                      {/* BOTÓN WAZE */}
                       <a
                         href={wazeUrl}
                         target="_blank"
@@ -413,9 +324,8 @@ export default function DeliveryMobilePage() {
                     </div>
                   </div>
 
-                  {/* FILA 5: COMUNICACIÓN RÁPIDA (WHATSAPP CLIENTE & LLAMAR) */}
+                  {/* COMUNICACIÓN (WHATSAPP & LLAMAR) */}
                   <div className="grid grid-cols-2 gap-2.5 pt-1">
-                    {/* BOTÓN WHATSAPP CLIENTE (MENSAJE PRELLENADO EXACTO) */}
                     <a
                       href={whatsappUrl}
                       target="_blank"
@@ -426,7 +336,6 @@ export default function DeliveryMobilePage() {
                       <span>WhatsApp Cliente</span>
                     </a>
 
-                    {/* BOTÓN LLAMAR DIRECTO */}
                     <a
                       href={callUrl}
                       className="flex items-center justify-center space-x-1.5 py-3 px-3 rounded-2xl bg-white border-2 border-border-sora hover:bg-bg-sora text-text-sora text-xs font-bold transition-all shadow-sm active:scale-95 text-center min-h-[48px]"
@@ -436,10 +345,9 @@ export default function DeliveryMobilePage() {
                     </a>
                   </div>
 
-                  {/* FILA 6: CAMBIO DE ESTADOS DE ENTREGA */}
+                  {/* CAMBIO DE ESTADOS */}
                   <div className="pt-2 border-t border-border-sora">
                     {!isEnCamino ? (
-                      /* BOTÓN INICIAR RUTA */
                       <button
                         onClick={() => handleStartRoute(order.id)}
                         className="w-full flex items-center justify-center space-x-2 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm transition-all shadow-md shadow-blue-600/25 active:scale-98 min-h-[48px]"
@@ -448,7 +356,6 @@ export default function DeliveryMobilePage() {
                         <span>Iniciar Ruta (Avisar Salida)</span>
                       </button>
                     ) : (
-                      /* BOTÓN GRANDE MARCAR COMO ENTREGADO */
                       <button
                         onClick={() => setOrderToDeliver(order)}
                         className="w-full flex items-center justify-center space-x-2 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm transition-all shadow-md shadow-emerald-600/30 active:scale-98 min-h-[48px]"
@@ -464,7 +371,7 @@ export default function DeliveryMobilePage() {
 
             {activeOrders.length === 0 && (
               <div className="p-8 text-center bg-white/80 rounded-3xl border border-border-sora shadow-sm space-y-3">
-                <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto animate-bounce" />
+                <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto" />
                 <h3 className="font-serif font-bold text-lg text-text-sora">
                   ¡No tienes pedidos pendientes!
                 </h3>
@@ -482,7 +389,7 @@ export default function DeliveryMobilePage() {
           </div>
         )}
 
-        {/* PESTAÑA HISTORIAL: PEDIDOS ENTREGADOS HOY */}
+        {/* PESTAÑA HISTORIAL: PEDIDOS ENTREGADOS */}
         {activeTab === 'historial' && (
           <div className="space-y-3">
             {deliveredOrders.map((order) => (
@@ -510,7 +417,7 @@ export default function DeliveryMobilePage() {
                     Entregado
                   </span>
                   <p className="text-[11px] text-text-sora/60 font-mono mt-0.5">
-                    ${order.total.toLocaleString('es-CL')}
+                    {formatCurrency(parseFloat(order.total as any) || 0)}
                   </p>
                 </div>
               </div>
@@ -524,7 +431,7 @@ export default function DeliveryMobilePage() {
           </div>
         )}
 
-        {/* MODAL DE CONFIRMACIÓN RÁPIDA PARA "MARCAR COMO ENTREGADO" */}
+        {/* MODAL DE CONFIRMACIÓN RÁPIDA */}
         {orderToDeliver && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-white rounded-3xl p-6 max-w-sm w-full border border-border-sora shadow-2xl space-y-4">
@@ -540,14 +447,13 @@ export default function DeliveryMobilePage() {
                 </p>
               </div>
 
-              {/* Recordatorio de Cobro si es contra entrega */}
               {orderToDeliver.payment_status === 'cobrar_contra_entrega' && (
                 <div className="p-3.5 rounded-2xl bg-primary-sora/10 border border-primary-sora/30 text-xs text-primary-sora text-center">
                   <p className="font-bold uppercase tracking-wider text-[11px]">
                     ⚠️ Asegúrate de haber cobrado:
                   </p>
                   <p className="text-lg font-bold font-mono mt-0.5">
-                    ${orderToDeliver.total.toLocaleString('es-CL')}
+                    {formatCurrency(parseFloat(orderToDeliver.total as any) || 0)}
                   </p>
                 </div>
               )}

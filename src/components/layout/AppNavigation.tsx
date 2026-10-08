@@ -105,45 +105,55 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen bg-bg-sora flex flex-col md:flex-row">
-      {/* HEADER MÓVIL */}
-      <header className="md:hidden bg-bg-sora border-b border-border-sora px-4 py-3 flex items-center justify-between sticky top-0 z-30 shadow-sm">
-        <div className="flex items-center space-x-2">
-          <div className="w-9 h-9 rounded-full bg-primary-sora text-white flex items-center justify-center shadow-sm">
+    <div className="min-h-screen bg-bg-sora flex flex-col lg:flex-row">
+      {/* HEADER MÓVIL Y TABLET (IPAD VERTICAL) */}
+      <header className="lg:hidden bg-bg-sora border-b border-border-sora px-4 sm:px-6 py-3.5 flex items-center justify-between sticky top-0 z-30 shadow-sm backdrop-blur-md bg-bg-sora/95">
+        <div className="flex items-center space-x-2.5">
+          <div className="w-10 h-10 rounded-2xl bg-primary-sora text-white flex items-center justify-center shadow-sm">
             <ChefHat className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="font-serif font-bold text-text-sora text-lg tracking-tight leading-none">
+            <h1 className="font-serif font-bold text-text-sora text-lg sm:text-xl tracking-tight leading-none">
               Sora
             </h1>
-            <p className="text-[10px] text-text-sora/60 uppercase tracking-widest font-semibold">
+            <p className="text-[10px] text-text-sora/60 uppercase tracking-widest font-semibold mt-0.5">
               Cocina Casera
             </p>
           </div>
         </div>
 
-        <button
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="p-2 rounded-lg text-text-sora hover:bg-border-sora/40 transition-colors"
-          aria-label="Abrir menú de navegación"
-        >
-          {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
+        <div className="flex items-center space-x-2">
+          {currentRoleInfo && (
+            <span
+              className={`hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${currentRoleInfo.badgeColor}`}
+            >
+              <Shield className="w-3 h-3 mr-1" />
+              {currentRoleInfo.label}
+            </span>
+          )}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="p-2.5 rounded-xl text-text-sora hover:bg-border-sora/40 transition-colors"
+            aria-label="Abrir menú de navegación"
+          >
+            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+        </div>
       </header>
 
-      {/* MENÚ MÓVIL DESPLEGABLE */}
+      {/* MENÚ MÓVIL Y TABLET DESPLEGABLE */}
       {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 top-14 bg-bg-sora/95 backdrop-blur-md z-20 flex flex-col justify-between p-6 overflow-y-auto border-b border-border-sora">
-          <div className="space-y-6">
-            {/* Info usuario móvil */}
+        <div className="lg:hidden fixed inset-0 top-[61px] bg-bg-sora/95 backdrop-blur-md z-20 flex flex-col justify-between p-6 overflow-y-auto border-b border-border-sora animate-in fade-in duration-150">
+          <div className="space-y-6 max-w-lg mx-auto w-full">
+            {/* Info usuario */}
             {profile && (
-              <div className="p-4 rounded-2xl bg-white/70 border border-border-sora shadow-sm">
+              <div className="p-4 rounded-2xl bg-white/80 border border-border-sora shadow-sm">
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-full bg-primary-sora/10 text-primary-sora flex items-center justify-center font-bold">
+                  <div className="w-11 h-11 rounded-2xl bg-primary-sora/15 text-primary-sora flex items-center justify-center font-bold text-base">
                     {profile.full_name?.charAt(0).toUpperCase() || 'U'}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-text-sora truncate text-sm">
+                    <p className="font-bold text-text-sora truncate text-sm">
                       {profile.full_name || user?.email}
                     </p>
                     <p className="text-xs text-text-sora/60 truncate">{user?.email}</p>
@@ -152,7 +162,7 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
                 {currentRoleInfo && (
                   <div className="mt-3">
                     <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${currentRoleInfo.badgeColor}`}
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${currentRoleInfo.badgeColor}`}
                     >
                       <Shield className="w-3 h-3 mr-1" />
                       {currentRoleInfo.label}
@@ -162,10 +172,10 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
               </div>
             )}
 
-            {/* Pestañas permitidas en móvil */}
+            {/* Pestañas permitidas */}
             <div className="space-y-2">
               <p className="text-xs font-semibold text-text-sora/50 uppercase tracking-wider px-2">
-                Navegación autorizada
+                Menú Autorizado
               </p>
               {visibleItems.map((item) => {
                 const Icon = item.icon;
@@ -175,10 +185,10 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
                     key={item.href}
                     href={item.href}
                     onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${
+                    className={`flex items-center space-x-3.5 px-4 py-3.5 rounded-2xl transition-all ${
                       isActive
-                        ? 'bg-primary-sora text-white shadow-sm font-medium'
-                        : 'text-text-sora/80 hover:bg-border-sora/50 hover:text-text-sora'
+                        ? 'bg-primary-sora text-white shadow-md font-semibold'
+                        : 'text-text-sora/80 hover:bg-border-sora/50 hover:text-text-sora bg-white/50 border border-border-sora/40'
                     }`}
                   >
                     <Icon className="w-5 h-5 flex-shrink-0" />
@@ -198,12 +208,12 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          {/* Botón cerrar sesión en móvil */}
-          <div className="pt-6 border-t border-border-sora">
+          {/* Botón cerrar sesión en móvil / tablet */}
+          <div className="pt-6 border-t border-border-sora max-w-lg mx-auto w-full">
             <button
               onClick={handleSignOut}
               disabled={isSigningOut}
-              className="w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-xl text-primary-sora bg-primary-sora/10 hover:bg-primary-sora hover:text-white transition-all font-medium text-sm disabled:opacity-50"
+              className="w-full flex items-center justify-center space-x-2 px-4 py-3.5 rounded-2xl text-primary-sora bg-primary-sora/10 hover:bg-primary-sora hover:text-white transition-all font-semibold text-sm disabled:opacity-50"
             >
               <LogOut className="w-4 h-4" />
               <span>{isSigningOut ? 'Cerrando sesión...' : 'Cerrar sesión'}</span>
@@ -212,8 +222,8 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      {/* BARRA LATERAL (DESKTOP) */}
-      <aside className="hidden md:flex flex-col w-64 bg-white/60 border-r border-border-sora sticky top-0 h-screen p-5 justify-between backdrop-blur-sm shadow-sm flex-shrink-0">
+      {/* BARRA LATERAL (PC Y IPAD HORIZONTAL) */}
+      <aside className="hidden lg:flex flex-col w-64 bg-white/60 border-r border-border-sora sticky top-0 h-screen p-5 justify-between backdrop-blur-sm shadow-sm flex-shrink-0">
         <div>
           {/* Logo y Marca */}
           <div className="flex items-center space-x-3 pb-6 border-b border-border-sora">

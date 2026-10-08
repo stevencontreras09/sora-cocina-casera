@@ -4,14 +4,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { AppNavigation } from '@/components/layout/AppNavigation';
 import { useAuth } from '@/context/AuthContext';
 import { createClient } from '@/lib/supabase/client';
+import { formatCurrency, cleanPhoneNumber } from '@/lib/utils';
 import {
   Client,
-  ClientAddress,
   Order,
   OrderItem,
   PaymentMethod,
   PaymentStatus,
-  Profile,
 } from '@/types/database.types';
 import {
   ShoppingBag,
@@ -28,98 +27,30 @@ import {
   Phone,
   Search,
   MessageCircle,
-  ChefHat,
-  Receipt,
   AlertCircle,
-  FileText,
+  RefreshCw,
 } from 'lucide-react';
 
-// Platos tradicionales de la carta de Sora Cocina Casera para selección rápida
+// Carta sugerida con precios estándar en Pesos Dominicanos (DOP / RD$)
 const MENU_ITEMS = [
-  { name: 'Pastel de Choclo Casero', price: 9500 },
-  { name: 'Cazuela de Vacuno con Choclo y Zapallo', price: 8900 },
-  { name: 'Plateada al Horno con Puré Rústico', price: 10900 },
-  { name: 'Porotos Granados con Mazamorra', price: 7900 },
-  { name: 'Lasaña Bolognesa Casera Familiar', price: 8900 },
-  { name: 'Merluza Austral Frita con Ensalada a la Chilena', price: 9200 },
-  { name: 'Ensalada a la Chilena Tradicional', price: 3500 },
-  { name: 'Pan Amasado Casero (Bolsa 4 unid.)', price: 2500 },
-  { name: 'Mote con Huesillo Tradicional (500cc)', price: 2900 },
-  { name: 'Leche Asada de Campo', price: 2900 },
-];
-
-const INITIAL_DEMO_CLIENTS: Client[] = [
-  {
-    id: 'cli-001',
-    name: 'Camila Valenzuela',
-    phone: '+56987654321',
-    addresses: [
-      {
-        id: 'addr-001',
-        client_id: 'cli-001',
-        label: 'Casa',
-        address: 'Av. Andrés Bello 2457, Depto 604, Providencia',
-        reference: 'Edificio ladrillo, timbre 604',
-        latitude: -33.4215,
-        longitude: -70.6128,
-      },
-      {
-        id: 'addr-002',
-        client_id: 'cli-001',
-        label: 'Oficina',
-        address: 'Av. El Bosque Norte 0123, Oficina 401, Las Condes',
-        reference: 'Torre Costanera, piso 4',
-        latitude: -33.4172,
-        longitude: -70.5985,
-      },
-    ],
-  },
-  {
-    id: 'cli-002',
-    name: 'Felipe Contreras',
-    phone: '+56976543210',
-    addresses: [
-      {
-        id: 'addr-003',
-        client_id: 'cli-002',
-        label: 'Casa',
-        address: 'Calle Rancagua 0180, Providencia',
-        reference: 'Casa blanca, rejas negras',
-        latitude: -33.4411,
-        longitude: -70.6318,
-      },
-    ],
-  },
-  {
-    id: 'cli-003',
-    name: 'Mariana Henríquez',
-    phone: '+56965432109',
-    addresses: [
-      {
-        id: 'addr-004',
-        client_id: 'cli-003',
-        label: 'Negocio',
-        address: 'Av. Italia 1580, Local 3, Ñuñoa',
-        reference: 'Local de cerámica artesanal',
-        latitude: -33.4485,
-        longitude: -70.6247,
-      },
-    ],
-  },
-];
-
-const INITIAL_DEMO_DRIVERS: { id: string; name: string }[] = [
-  { id: 'drv-01', name: 'Pedro Valdés (Repartidor Móvil #1)' },
-  { id: 'drv-02', name: 'Matías Osorio (Repartidor Móvil #2)' },
-  { id: 'drv-03', name: 'Cristóbal Silva (Repartidor Moto)' },
+  { name: 'Plato Casero del Día', price: 350 },
+  { name: 'Pollo Guisado con Arroz y Habichuelas', price: 325 },
+  { name: 'Mofongo con Chicharrón Casero', price: 450 },
+  { name: 'Sancocho Tradicional con Arroz', price: 475 },
+  { name: 'Chivo Liniero al Caldero', price: 550 },
+  { name: 'Pescado con Coco Tradicional', price: 525 },
+  { name: 'Lasaña Casera Horneada', price: 390 },
+  { name: 'Porción Tostones / Ensalada', price: 150 },
+  { name: 'Jugo Natural de Chinola / Frutas', price: 120 },
+  { name: 'Postre Majarete / Dulce Casero', price: 150 },
 ];
 
 export default function VentasPage() {
   const supabase = useMemo(() => createClient(), []);
 
-  // Clientes y Repartidores
-  const [clients, setClients] = useState<Client[]>(INITIAL_DEMO_CLIENTS);
-  const [deliveryDrivers, setDeliveryDrivers] = useState(INITIAL_DEMO_DRIVERS);
+  // Clientes y Repartidores reales
+  const [clients, setClients] = useState<Client[]>([]);
+  const [deliveryDrivers, setDeliveryDrivers] = useState<{ id: string; name: string }[]>([]);
 
   // Estados del Formulario de Pedido
   const [selectedClientId, setSelectedClientId] = useState<string>('');
@@ -129,110 +60,93 @@ export default function VentasPage() {
   const [items, setItems] = useState<OrderItem[]>([
     {
       id: 'item-1',
-      name: 'Pastel de Choclo Casero',
+      name: 'Plato Casero del Día',
       quantity: 1,
-      price: 9500,
-      subtotal: 9500,
+      price: 350,
+      subtotal: 350,
     },
   ]);
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('efectivo');
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('pagado');
-  const [deliveryUserId, setDeliveryUserId] = useState<string>('drv-01');
+  const [deliveryUserId, setDeliveryUserId] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
 
-  // Historial de Pedidos Creados
-  const [orders, setOrders] = useState<Order[]>([
-    {
-      id: 'ord-1043',
-      order_number: 'SORA-1043',
-      client_id: 'cli-001',
-      client_name: 'Camila Valenzuela',
-      client_phone: '+56987654321',
-      address_label: 'Casa',
-      address: 'Av. Andrés Bello 2457, Depto 604, Providencia',
-      address_reference: 'Edificio ladrillo, timbre 604',
-      items: [
-        {
-          id: '1',
-          name: 'Pastel de Choclo Casero',
-          quantity: 2,
-          price: 9500,
-          subtotal: 19000,
-        },
-        {
-          id: '2',
-          name: 'Mote con Huesillo Tradicional (500cc)',
-          quantity: 2,
-          price: 2900,
-          subtotal: 5800,
-        },
-      ],
-      total: 24800,
-      payment_method: 'transferencia',
-      payment_status: 'pagado',
-      delivery_user_name: 'Pedro Valdés (Repartidor Móvil #1)',
-      status: 'pendiente',
-      created_at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    },
-  ]);
+  // Lista limpia de pedidos reales
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoadingOrders, setIsLoadingOrders] = useState(false);
 
-  // Cargar clientes y usuarios delivery de Supabase
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const { data: clientsData } = await supabase
-          .from('clients')
-          .select('*')
-          .order('name');
+  // Cargar datos reales desde Supabase
+  const loadData = async () => {
+    setIsLoadingOrders(true);
+    try {
+      // 1. Clientes y Direcciones
+      const { data: clientsData } = await supabase
+        .from('clients')
+        .select('*')
+        .order('name');
 
-        if (clientsData && clientsData.length > 0) {
-          const { data: addressesData } = await supabase
-            .from('client_addresses')
-            .select('*');
+      if (clientsData) {
+        const { data: addressesData } = await supabase
+          .from('client_addresses')
+          .select('*');
 
-          const merged = clientsData.map((c) => ({
-            ...c,
-            addresses: (addressesData || []).filter((a) => a.client_id === c.id),
-          }));
-          setClients(merged);
-        }
-
-        const { data: driversData } = await supabase
-          .from('profiles')
-          .select('id, full_name')
-          .eq('role', 'delivery');
-
-        if (driversData && driversData.length > 0) {
-          setDeliveryDrivers(
-            driversData.map((d) => ({
-              id: d.id,
-              name: d.full_name || 'Repartidor',
-            }))
-          );
-        }
-      } catch (err) {
-        console.warn('Usando catálogo local');
+        const merged = clientsData.map((c) => ({
+          ...c,
+          addresses: (addressesData || []).filter((a) => a.client_id === c.id),
+        }));
+        setClients(merged);
       }
+
+      // 2. Repartidores activos
+      const { data: driversData } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .eq('role', 'delivery')
+        .eq('is_active', true);
+
+      if (driversData && driversData.length > 0) {
+        setDeliveryDrivers(
+          driversData.map((d) => ({
+            id: d.id,
+            name: d.full_name || 'Repartidor',
+          }))
+        );
+      }
+
+      // 3. Pedidos creados en Supabase
+      const { data: ordersData } = await supabase
+        .from('orders')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (ordersData) {
+        setOrders(ordersData as Order[]);
+      }
+    } catch (err) {
+      console.warn('Carga inicial de ventas');
+    } finally {
+      setIsLoadingOrders(false);
     }
+  };
+
+  useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase]);
 
-  // Cliente seleccionado actual
   const currentClient = useMemo(
     () => clients.find((c) => c.id === selectedClientId) || null,
     [clients, selectedClientId]
   );
 
-  // Direcciones disponibles para el cliente seleccionado
   const availableAddresses = useMemo(
     () => currentClient?.addresses || [],
     [currentClient]
   );
 
-  // Auto-seleccionar la dirección predeterminada cuando cambia de cliente
   useEffect(() => {
     if (availableAddresses.length > 0) {
       const defaultAddr =
@@ -243,13 +157,11 @@ export default function VentasPage() {
     }
   }, [availableAddresses]);
 
-  // Dirección seleccionada
   const currentAddress = useMemo(
     () => availableAddresses.find((a) => a.id === selectedAddressId) || null,
     [availableAddresses, selectedAddressId]
   );
 
-  // Cálculos dinámicos de ítems
   const handleItemChange = (
     index: number,
     field: 'name' | 'quantity' | 'price',
@@ -282,8 +194,8 @@ export default function VentasPage() {
         id: `item-${Date.now()}`,
         name: dishName || 'Plato Casero Sora',
         quantity: 1,
-        price: price || 7500,
-        subtotal: price || 7500,
+        price: price || 350,
+        subtotal: price || 350,
       },
     ]);
   };
@@ -298,7 +210,6 @@ export default function VentasPage() {
     [items]
   );
 
-  // Clientes filtrados para el buscador
   const filteredClients = useMemo(() => {
     const q = clientSearchQuery.toLowerCase().trim();
     if (!q) return clients;
@@ -308,32 +219,62 @@ export default function VentasPage() {
     );
   }, [clients, clientSearchQuery]);
 
-  // Manejo de Creación de Pedido
   const handleCreateOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentClient) {
       alert('Por favor selecciona un cliente para el pedido.');
       return;
     }
-    if (!currentAddress && availableAddresses.length > 0) {
-      alert('Por favor selecciona la dirección de entrega del cliente.');
-      return;
-    }
 
     setIsSubmitting(true);
-
     const orderNumber = `SORA-${Math.floor(1000 + Math.random() * 9000)}`;
     const driverObj = deliveryDrivers.find((d) => d.id === deliveryUserId);
 
+    let createdId = `ord-${Date.now()}`;
+    try {
+      const { data } = await supabase
+        .from('orders')
+        .insert([
+          {
+            order_number: orderNumber,
+            client_id: currentClient.id,
+            client_name: currentClient.name,
+            client_phone: currentClient.phone,
+            address_id: currentAddress?.id || null,
+            address_label: currentAddress?.label || null,
+            address: currentAddress?.address || 'Retiro en local',
+            address_reference: currentAddress?.reference || null,
+            latitude: currentAddress?.latitude || null,
+            longitude: currentAddress?.longitude || null,
+            items: items,
+            total: totalCalculated,
+            payment_method: paymentMethod,
+            payment_status: paymentStatus,
+            delivery_user_id: deliveryUserId || null,
+            delivery_user_name: driverObj?.name || null,
+            status: 'Pendiente',
+            notes: notes || null,
+          },
+        ])
+        .select()
+        .single();
+
+      if (data) {
+        createdId = data.id;
+      }
+    } catch (err) {
+      console.warn('Pedido guardado localmente');
+    }
+
     const newOrder: Order = {
-      id: `ord-${Date.now()}`,
+      id: createdId,
       order_number: orderNumber,
       client_id: currentClient.id,
       client_name: currentClient.name,
       client_phone: currentClient.phone,
       address_id: currentAddress?.id,
       address_label: currentAddress?.label || 'Dirección',
-      address: currentAddress?.address || 'Retiro en local / Sin dirección',
+      address: currentAddress?.address || 'Retiro en local',
       address_reference: currentAddress?.reference || undefined,
       latitude: currentAddress?.latitude,
       longitude: currentAddress?.longitude,
@@ -348,45 +289,18 @@ export default function VentasPage() {
       created_at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
-    try {
-      await supabase.from('orders').insert([
-        {
-          order_number: orderNumber,
-          client_id: currentClient.id,
-          client_name: currentClient.name,
-          client_phone: currentClient.phone,
-          address_id: currentAddress?.id || null,
-          address_label: currentAddress?.label || null,
-          address: currentAddress?.address || 'Local',
-          address_reference: currentAddress?.reference || null,
-          latitude: currentAddress?.latitude || null,
-          longitude: currentAddress?.longitude || null,
-          items: items,
-          total: totalCalculated,
-          payment_method: paymentMethod,
-          payment_status: paymentStatus,
-          delivery_user_id: deliveryUserId || null,
-          delivery_user_name: driverObj?.name || null,
-          status: 'Pendiente',
-          notes: notes || null,
-        },
-      ]);
-    } catch (err) {
-      console.warn('Pedido registrado en memoria');
-    }
-
     setOrders([newOrder, ...orders]);
     setIsSubmitting(false);
-    setSuccessNotice(`¡Pedido #${orderNumber} creado con estado "Pendiente"!`);
+    setSuccessNotice(`¡Pedido #${orderNumber} creado exitosamente en DOP!`);
 
     // Resetear formulario
     setItems([
       {
         id: `item-${Date.now()}`,
-        name: 'Pastel de Choclo Casero',
+        name: 'Plato Casero del Día',
         quantity: 1,
-        price: 9500,
-        subtotal: 9500,
+        price: 350,
+        subtotal: 350,
       },
     ]);
     setNotes('');
@@ -398,7 +312,7 @@ export default function VentasPage() {
 
   return (
     <AppNavigation>
-      <div className="space-y-8">
+      <div className="space-y-6 sm:space-y-8">
         {/* Encabezado */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -408,16 +322,26 @@ export default function VentasPage() {
               </span>
               <span className="text-xs text-text-sora/50">•</span>
               <span className="text-xs text-text-sora/60">
-                Acceso exclusivo Administrador
+                Moneda: DOP (RD$)
               </span>
             </div>
             <h1 className="font-serif text-2xl sm:text-3xl font-bold text-text-sora mt-1 tracking-tight">
               Creación y Despacho de Pedidos
             </h1>
             <p className="text-xs sm:text-sm text-text-sora/70">
-              Registra pedidos rápidos, asigna repartidores y coordina métodos de pago.
+              Registra pedidos, asigna repartidores y visualiza totales en pesos dominicanos.
             </p>
           </div>
+
+          <button
+            onClick={loadData}
+            disabled={isLoadingOrders}
+            className="self-start sm:self-auto p-2.5 rounded-xl border border-border-sora bg-white text-text-sora hover:bg-bg-sora text-xs font-semibold transition-all shadow-sm flex items-center space-x-1.5"
+            title="Refrescar pedidos y clientes"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoadingOrders ? 'animate-spin text-primary-sora' : ''}`} />
+            <span className="hidden sm:inline">Actualizar</span>
+          </button>
         </div>
 
         {/* Notificación de Éxito */}
@@ -428,12 +352,12 @@ export default function VentasPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* COLUMNA IZQUIERDA: FORMULARIO DE NUEVO PEDIDO (7 COLS) */}
-          <div className="lg:col-span-7 bg-white/80 rounded-3xl p-6 border border-border-sora shadow-sora">
-            <div className="pb-4 border-b border-border-sora flex items-center justify-between mb-6">
-              <div className="flex items-center space-x-2">
-                <div className="w-9 h-9 rounded-2xl bg-primary-sora text-white flex items-center justify-center shadow-sm">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
+          {/* COLUMNA IZQUIERDA: FORMULARIO DE NUEVO PEDIDO */}
+          <div className="lg:col-span-7 bg-white/85 rounded-3xl p-5 sm:p-6 border border-border-sora shadow-sora">
+            <div className="pb-4 border-b border-border-sora flex items-center justify-between mb-5">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-primary-sora text-white flex items-center justify-center shadow-sm">
                   <ShoppingBag className="w-5 h-5" />
                 </div>
                 <div>
@@ -447,41 +371,54 @@ export default function VentasPage() {
               </div>
             </div>
 
-            <form onSubmit={handleCreateOrder} className="space-y-6">
-              {/* 1. SELECCIÓN DE CLIENTE CON BUSCADOR */}
+            <form onSubmit={handleCreateOrder} className="space-y-5">
+              {/* 1. SELECCIÓN DE CLIENTE */}
               <div className="space-y-2">
                 <label className="block text-xs font-semibold text-text-sora/80 uppercase tracking-wider">
                   1. Seleccionar Cliente *
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div className="relative">
-                    <Search className="w-4 h-4 absolute left-3 top-3 text-text-sora/40 pointer-events-none" />
-                    <input
-                      type="text"
-                      placeholder="Filtrar por nombre o teléfono..."
-                      value={clientSearchQuery}
-                      onChange={(e) => setClientSearchQuery(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs placeholder:text-text-sora/30 focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora"
-                    />
-                  </div>
 
-                  <select
-                    required
-                    value={selectedClientId}
-                    onChange={(e) => setSelectedClientId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
-                  >
-                    <option value="">-- Elige un cliente ({filteredClients.length}) --</option>
-                    {filteredClients.map((client) => (
-                      <option key={client.id} value={client.id}>
-                        {client.name} ({client.phone})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {clients.length === 0 ? (
+                  <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-start space-x-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold">Aún no hay clientes registrados en el directorio.</p>
+                      <p className="mt-0.5 text-[11px]">
+                        Ve a la pestaña <strong>Clientes</strong> para registrar el primero y asignarle dirección.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="relative">
+                      <Search className="w-4 h-4 absolute left-3 top-3 text-text-sora/40 pointer-events-none" />
+                      <input
+                        type="text"
+                        placeholder="Filtrar por nombre o teléfono..."
+                        value={clientSearchQuery}
+                        onChange={(e) => setClientSearchQuery(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs placeholder:text-text-sora/30 focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora"
+                      />
+                    </div>
+
+                    <select
+                      required
+                      value={selectedClientId}
+                      onChange={(e) => setSelectedClientId(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
+                    >
+                      <option value="">-- Elige un cliente ({filteredClients.length}) --</option>
+                      {filteredClients.map((client) => (
+                        <option key={client.id} value={client.id}>
+                          {client.name} ({client.phone})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {currentClient && (
-                  <div className="p-3 rounded-xl bg-bg-sora/80 border border-border-sora flex items-center justify-between text-xs">
+                  <div className="p-3 rounded-2xl bg-bg-sora/80 border border-border-sora flex items-center justify-between text-xs">
                     <div className="flex items-center space-x-2">
                       <User className="w-4 h-4 text-primary-sora" />
                       <span className="font-semibold text-text-sora">{currentClient.name}</span>
@@ -496,23 +433,20 @@ export default function VentasPage() {
                 )}
               </div>
 
-              {/* 2. SELECTOR DE DIRECCIÓN DEL CLIENTE */}
+              {/* 2. DIRECCIÓN DE ENTREGA */}
               <div className="space-y-2">
                 <label className="block text-xs font-semibold text-text-sora/80 uppercase tracking-wider">
-                  2. Dirección de Entrega *
+                  2. Dirección de Entrega
                 </label>
                 {availableAddresses.length === 0 ? (
-                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center space-x-2">
-                    <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                    <span>
-                      Este cliente no tiene direcciones registradas. Se despachará como retiro o ingresa al módulo Clientes.
-                    </span>
+                  <div className="p-3 rounded-2xl bg-bg-sora/60 border border-border-sora text-text-sora/70 text-xs">
+                    Sin direcciones guardadas. El pedido se marcará como <strong>Retiro en Local</strong>.
                   </div>
                 ) : (
                   <select
                     value={selectedAddressId}
                     onChange={(e) => setSelectedAddressId(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora"
+                    className="w-full px-3 py-2.5 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
                   >
                     {availableAddresses.map((addr) => (
                       <option key={addr.id} value={addr.id}>
@@ -523,9 +457,9 @@ export default function VentasPage() {
                 )}
 
                 {currentAddress && (
-                  <div className="p-3 rounded-xl bg-bg-sora/80 border border-border-sora space-y-1 text-xs">
+                  <div className="p-3 rounded-2xl bg-bg-sora/80 border border-border-sora space-y-1 text-xs">
                     <div className="flex items-center space-x-1.5 font-medium text-text-sora">
-                      <MapPin className="w-3.5 h-3.5 text-primary-sora" />
+                      <MapPin className="w-3.5 h-3.5 text-primary-sora flex-shrink-0" />
                       <span>{currentAddress.address}</span>
                     </div>
                     {currentAddress.reference && (
@@ -537,35 +471,35 @@ export default function VentasPage() {
                 )}
               </div>
 
-              {/* 3. LISTA DINÁMICA DE PLATOS / ÍTEMS */}
+              {/* 3. PLATOS Y PRECIOS EN DOP */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-semibold text-text-sora/80 uppercase tracking-wider">
-                    3. Platos y Cantidades *
+                    3. Platos y Cantidades (Precios en DOP) *
                   </label>
                   <button
                     type="button"
                     onClick={() => handleAddItem()}
-                    className="inline-flex items-center space-x-1 text-xs font-semibold text-primary-sora hover:text-primary-hover"
+                    className="inline-flex items-center space-x-1 text-xs font-semibold text-primary-sora hover:text-primary-hover py-1 px-2 rounded-lg hover:bg-primary-sora/10"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Agregar Ítem</span>
                   </button>
                 </div>
 
-                {/* Botones de sugerencias rápidas de la carta */}
+                {/* Carta rápida con precios en DOP */}
                 <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 scrollbar-none">
                   <span className="text-[10px] text-text-sora/50 uppercase font-semibold whitespace-nowrap">
-                    Carta rápida:
+                    Carta Rápida:
                   </span>
                   {MENU_ITEMS.slice(0, 5).map((dish) => (
                     <button
                       type="button"
                       key={dish.name}
                       onClick={() => handleAddItem(dish.name, dish.price)}
-                      className="px-2.5 py-1 rounded-lg bg-bg-sora hover:bg-border-sora/50 border border-border-sora text-[11px] text-text-sora whitespace-nowrap transition-all"
+                      className="px-2.5 py-1.5 rounded-xl bg-bg-sora hover:bg-border-sora/50 border border-border-sora text-[11px] text-text-sora whitespace-nowrap transition-all font-medium"
                     >
-                      + {dish.name.split(' ')[0]} ${dish.price.toLocaleString('es-CL')}
+                      + {dish.name.split(' ')[0]} {formatCurrency(dish.price)}
                     </button>
                   ))}
                 </div>
@@ -575,9 +509,8 @@ export default function VentasPage() {
                   {items.map((item, index) => (
                     <div
                       key={item.id}
-                      className="grid grid-cols-12 gap-2 items-center p-2.5 rounded-xl bg-bg-sora/40 border border-border-sora"
+                      className="grid grid-cols-12 gap-2 items-center p-2.5 rounded-2xl bg-bg-sora/40 border border-border-sora"
                     >
-                      {/* Nombre del plato */}
                       <div className="col-span-6">
                         <input
                           type="text"
@@ -586,11 +519,10 @@ export default function VentasPage() {
                           value={item.name}
                           onChange={(e) => handleItemChange(index, 'name', e.target.value)}
                           placeholder="Nombre del plato..."
-                          className="w-full px-2.5 py-1.5 rounded-lg border border-border-sora bg-white text-xs text-text-sora focus:outline-none focus:ring-1 focus:ring-primary-sora"
+                          className="w-full px-2.5 py-2 rounded-xl border border-border-sora bg-white text-xs text-text-sora focus:outline-none focus:ring-1 focus:ring-primary-sora"
                         />
                       </div>
 
-                      {/* Cantidad */}
                       <div className="col-span-2">
                         <input
                           type="number"
@@ -598,27 +530,25 @@ export default function VentasPage() {
                           required
                           value={item.quantity}
                           onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
-                          className="w-full px-2 py-1.5 rounded-lg border border-border-sora bg-white text-xs text-text-sora text-center focus:outline-none focus:ring-1 focus:ring-primary-sora"
+                          className="w-full px-2 py-2 rounded-xl border border-border-sora bg-white text-xs text-text-sora text-center focus:outline-none focus:ring-1 focus:ring-primary-sora font-medium"
                         />
                       </div>
 
-                      {/* Precio Unitario */}
                       <div className="col-span-2">
                         <input
                           type="number"
                           min="0"
-                          step="100"
+                          step="10"
                           required
                           value={item.price}
                           onChange={(e) => handleItemChange(index, 'price', e.target.value)}
-                          className="w-full px-2 py-1.5 rounded-lg border border-border-sora bg-white text-xs text-text-sora text-right focus:outline-none focus:ring-1 focus:ring-primary-sora"
+                          className="w-full px-2 py-2 rounded-xl border border-border-sora bg-white text-xs text-text-sora text-right focus:outline-none focus:ring-1 focus:ring-primary-sora font-mono"
                         />
                       </div>
 
-                      {/* Subtotal y Eliminar */}
-                      <div className="col-span-2 flex items-center justify-end space-x-1.5">
-                        <span className="text-xs font-bold text-text-sora">
-                          ${item.subtotal.toLocaleString('es-CL')}
+                      <div className="col-span-2 flex items-center justify-end space-x-1">
+                        <span className="text-xs font-bold text-text-sora font-mono">
+                          {formatCurrency(item.subtotal)}
                         </span>
                         <button
                           type="button"
@@ -640,8 +570,8 @@ export default function VentasPage() {
                 </datalist>
               </div>
 
-              {/* 4. TOTAL CALCULADO AUTOMÁTICAMENTE */}
-              <div className="p-4 rounded-2xl bg-primary-sora/10 border border-primary-sora/20 flex items-center justify-between">
+              {/* 4. TOTAL CALCULADO AUTOMÁTICAMENTE (DOP) */}
+              <div className="p-4 rounded-2xl bg-primary-sora/10 border border-primary-sora/25 flex items-center justify-between">
                 <div>
                   <span className="text-xs font-bold text-primary-sora uppercase tracking-wider">
                     Total a Cobrar
@@ -651,7 +581,7 @@ export default function VentasPage() {
                   </p>
                 </div>
                 <span className="font-serif text-2xl font-bold text-primary-sora">
-                  ${totalCalculated.toLocaleString('es-CL')}
+                  {formatCurrency(totalCalculated)}
                 </span>
               </div>
 
@@ -722,10 +652,10 @@ export default function VentasPage() {
                 </div>
               </div>
 
-              {/* 6. SELECTOR DE REPARTIDOR (ROL 'DELIVERY') */}
+              {/* 6. SELECTOR DE REPARTIDOR */}
               <div>
                 <label className="block text-xs font-semibold text-text-sora/80 mb-1.5 uppercase tracking-wider">
-                  Asignar Repartidor Activo (Rol 'delivery')
+                  Asignar Repartidor Activo
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-text-sora/40">
@@ -746,125 +676,110 @@ export default function VentasPage() {
                 </div>
               </div>
 
-              {/* Botón de Guardar Pedido */}
               <button
                 type="submit"
                 disabled={isSubmitting || !currentClient}
-                className="w-full py-3.5 rounded-2xl bg-primary-sora hover:bg-primary-hover text-white font-semibold text-sm transition-all shadow-md shadow-primary-sora/25 active:scale-[0.99] disabled:opacity-50"
+                className="w-full py-3.5 rounded-2xl bg-primary-sora hover:bg-primary-hover text-white font-semibold text-sm transition-all shadow-md shadow-primary-sora/25 active:scale-98 disabled:opacity-50"
               >
-                {isSubmitting ? 'Guardando pedido...' : 'Crear Pedido (Estado: Pendiente)'}
+                {isSubmitting ? 'Guardando pedido...' : 'Crear Pedido en DOP (Estado: Pendiente)'}
               </button>
             </form>
           </div>
 
-          {/* COLUMNA DERECHA: PEDIDOS RECIENTES Y MONITOREO (5 COLS) */}
+          {/* COLUMNA DERECHA: PEDIDOS REGISTRADOS */}
           <div className="lg:col-span-5 space-y-4">
-            <div className="bg-white/80 rounded-3xl p-6 border border-border-sora shadow-sora">
+            <div className="bg-white/85 rounded-3xl p-5 sm:p-6 border border-border-sora shadow-sora">
               <div className="flex items-center justify-between pb-4 border-b border-border-sora mb-4">
                 <div>
                   <h3 className="font-serif font-bold text-base text-text-sora">
-                    Pedidos Registrados
+                    Historial de Pedidos
                   </h3>
                   <p className="text-xs text-text-sora/60">
-                    {orders.length} pedidos en el sistema
+                    {orders.length} pedidos registrados
                   </p>
                 </div>
                 <span className="text-xs px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-semibold">
-                  Pendientes: {orders.filter((o) => o.status === 'pendiente').length}
+                  Pendientes: {orders.filter((o) => (o.status || '').toLowerCase() === 'pendiente').length}
                 </span>
               </div>
 
-              <div className="space-y-3.5 max-h-[700px] overflow-y-auto pr-1">
-                {orders.map((order) => {
-                  const cleanPhone = order.client_phone.replace(/[^0-9]/g, '');
-                  const whatsappMsg = encodeURIComponent(
-                    `¡Hola ${order.client_name}! 🍲 Tu pedido #${order.order_number} en Sora Cocina Casera por un total de $${order.total.toLocaleString('es-CL')} ha sido ingresado exitosamente.`
-                  );
+              {orders.length > 0 ? (
+                <div className="space-y-3.5 max-h-[700px] overflow-y-auto pr-1">
+                  {orders.map((order) => {
+                    const cleanPhone = cleanPhoneNumber(order.client_phone);
+                    const whatsappMsg = encodeURIComponent(
+                      `¡Hola ${order.client_name}! 🍲 Tu pedido #${order.order_number} en Sora Cocina Casera por un total de ${formatCurrency(order.total)} ha sido ingresado exitosamente.`
+                    );
 
-                  return (
-                    <div
-                      key={order.id}
-                      className="p-4 rounded-2xl bg-white border border-border-sora shadow-sm space-y-2.5 hover:border-primary-sora/40 transition-colors"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <span className="font-mono text-xs font-bold text-primary-sora bg-bg-sora px-2 py-0.5 rounded-md border border-border-sora">
-                            {order.order_number}
-                          </span>
-                          <span className="text-xs font-bold text-text-sora">
-                            {order.client_name}
-                          </span>
-                        </div>
-                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 uppercase">
-                          {order.status}
-                        </span>
-                      </div>
-
-                      <div className="text-xs text-text-sora/70 space-y-1">
-                        <p className="flex items-center">
-                          <MapPin className="w-3.5 h-3.5 mr-1 text-primary-sora flex-shrink-0" />
-                          <span className="truncate">{order.address}</span>
-                        </p>
-                        <p className="flex items-center">
-                          <Truck className="w-3.5 h-3.5 mr-1 text-text-sora/40 flex-shrink-0" />
-                          <span>Repartidor: {order.delivery_user_name || 'Sin asignar'}</span>
-                        </p>
-                      </div>
-
-                      {/* Lista resumida de platos */}
-                      <div className="p-2.5 rounded-xl bg-bg-sora/50 border border-border-sora/60 text-[11px] space-y-1">
-                        {order.items.map((it, idx) => (
-                          <div key={idx} className="flex justify-between">
-                            <span>
-                              {it.quantity}x {it.name}
+                    return (
+                      <div
+                        key={order.id}
+                        className="p-4 rounded-2xl bg-white border border-border-sora shadow-sm space-y-2.5 hover:border-primary-sora/40 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <span className="font-mono text-xs font-bold text-primary-sora bg-bg-sora px-2 py-0.5 rounded-md border border-border-sora">
+                              {order.order_number}
                             </span>
-                            <span className="font-mono text-text-sora/60">
-                              ${it.subtotal.toLocaleString('es-CL')}
+                            <span className="text-xs font-bold text-text-sora">
+                              {order.client_name}
                             </span>
                           </div>
-                        ))}
-                      </div>
-
-                      {/* Total y Pago */}
-                      <div className="flex items-center justify-between pt-1 border-t border-border-sora/60">
-                        <div className="text-[11px]">
-                          <span className="text-text-sora/60">Pago: </span>
-                          <span className="font-medium capitalize text-text-sora">
-                            {order.payment_method} •{' '}
-                          </span>
-                          <span
-                            className={
-                              order.payment_status === 'pagado'
-                                ? 'text-emerald-600 font-semibold'
-                                : 'text-amber-600 font-semibold'
-                            }
-                          >
-                            {order.payment_status === 'pagado'
-                              ? 'Pagado'
-                              : 'Contra entrega'}
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 uppercase">
+                            {order.status}
                           </span>
                         </div>
-                        <span className="text-sm font-bold text-primary-sora font-mono">
-                          ${order.total.toLocaleString('es-CL')}
-                        </span>
-                      </div>
 
-                      {/* Botón WhatsApp de Notificación */}
-                      <div className="pt-1">
-                        <a
-                          href={`https://wa.me/${cleanPhone}?text=${whatsappMsg}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="w-full flex items-center justify-center space-x-1.5 py-2 rounded-xl bg-whatsapp hover:bg-[#20bd5a] text-white text-xs font-semibold transition-all shadow-sm"
-                        >
-                          <MessageCircle className="w-3.5 h-3.5" />
-                          <span>Notificar al Cliente por WhatsApp</span>
-                        </a>
+                        <div className="text-xs text-text-sora/70 space-y-1">
+                          <p className="flex items-center">
+                            <MapPin className="w-3.5 h-3.5 mr-1 text-primary-sora flex-shrink-0" />
+                            <span className="truncate">{order.address}</span>
+                          </p>
+                        </div>
+
+                        {/* Total y Pago en DOP */}
+                        <div className="flex items-center justify-between pt-1 border-t border-border-sora/60">
+                          <div className="text-[11px]">
+                            <span className="capitalize font-medium text-text-sora">
+                              {order.payment_method} •{' '}
+                            </span>
+                            <span
+                              className={
+                                order.payment_status === 'pagado'
+                                  ? 'text-emerald-600 font-semibold'
+                                  : 'text-amber-600 font-semibold'
+                              }
+                            >
+                              {order.payment_status === 'pagado' ? 'Pagado' : 'Contra entrega'}
+                            </span>
+                          </div>
+                          <span className="text-sm font-bold text-primary-sora font-mono">
+                            {formatCurrency(parseFloat(order.total as any) || 0)}
+                          </span>
+                        </div>
+
+                        <div className="pt-1">
+                          <a
+                            href={`https://wa.me/${cleanPhone}?text=${whatsappMsg}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full flex items-center justify-center space-x-1.5 py-2 rounded-xl bg-whatsapp hover:bg-[#20bd5a] text-white text-xs font-semibold transition-all shadow-sm active:scale-95"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            <span>Notificar al Cliente (WhatsApp)</span>
+                          </a>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-8 text-center text-xs text-text-sora/50 space-y-2">
+                  <ShoppingBag className="w-8 h-8 mx-auto text-text-sora/20" />
+                  <p className="font-semibold text-text-sora/70">No hay pedidos registrados aún</p>
+                  <p>Crea el primer pedido con el formulario de la izquierda.</p>
+                </div>
+              )}
             </div>
           </div>
         </div>

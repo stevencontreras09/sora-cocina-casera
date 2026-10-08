@@ -7,6 +7,7 @@ import { Client, ClientAddress } from '@/types/database.types';
 import { createClient } from '@/lib/supabase/client';
 import { ClientModal } from '@/components/clientes/ClientModal';
 import { AddressModal } from '@/components/clientes/AddressModal';
+import { cleanPhoneNumber } from '@/lib/utils';
 import {
   Users,
   UserPlus,
@@ -22,85 +23,16 @@ import {
   Briefcase,
   Store,
   ExternalLink,
-  Compass,
-  AlertCircle,
-  Loader2,
   CheckCircle2,
+  RefreshCw,
 } from 'lucide-react';
-
-// Clientes iniciales representativos de Sora Cocina Casera (con geolocalizaciones en Santiago)
-const INITIAL_DEMO_CLIENTS: Client[] = [
-  {
-    id: 'cli-001',
-    name: 'Camila Valenzuela',
-    phone: '+56987654321',
-    notes: 'Cliente habitual almuerzos ejecutivos. Prefiere la comida bien caliente y sin cebolla morada.',
-    addresses: [
-      {
-        id: 'addr-001',
-        client_id: 'cli-001',
-        label: 'Casa',
-        address: 'Av. Andrés Bello 2457, Depto 604, Providencia',
-        reference: 'Edificio color ladrillo, timbre 604 en conserjería. Dejar con Don Carlos.',
-        latitude: -33.4215,
-        longitude: -70.6128,
-        is_default: true,
-      },
-      {
-        id: 'addr-002',
-        client_id: 'cli-001',
-        label: 'Oficina',
-        address: 'Av. El Bosque Norte 0123, Oficina 401, Las Condes',
-        reference: 'Torre Costanera, piso 4, recepción abierta de 9 a 18 hrs.',
-        latitude: -33.4172,
-        longitude: -70.5985,
-        is_default: false,
-      },
-    ],
-  },
-  {
-    id: 'cli-002',
-    name: 'Felipe Contreras',
-    phone: '+56976543210',
-    notes: 'Fanático del Pastel de Choclo y Cazuela. Pide siempre doble porción de pebre.',
-    addresses: [
-      {
-        id: 'addr-003',
-        client_id: 'cli-002',
-        label: 'Casa',
-        address: 'Calle Rancagua 0180, Providencia',
-        reference: 'Casa blanca de un piso, rejas negras altas, timbre al fondo del pasillo.',
-        latitude: -33.4411,
-        longitude: -70.6318,
-        is_default: true,
-      },
-    ],
-  },
-  {
-    id: 'cli-003',
-    name: 'Mariana Henríquez',
-    phone: '+56965432109',
-    notes: 'Alérgica a mariscos y frutos secos. Avisar por WhatsApp 5 minutos antes de llegar.',
-    addresses: [
-      {
-        id: 'addr-004',
-        client_id: 'cli-003',
-        label: 'Negocio',
-        address: 'Av. Italia 1580, Local 3, Ñuñoa',
-        reference: 'Boulevard Barrio Italia, local de cerámica artesanal.',
-        latitude: -33.4485,
-        longitude: -70.6247,
-        is_default: true,
-      },
-    ],
-  },
-];
 
 export default function ClientesPage() {
   const { role } = useAuth();
   const supabase = useMemo(() => createClient(), []);
 
-  const [clients, setClients] = useState<Client[]>(INITIAL_DEMO_CLIENTS);
+  // Lista limpia inicial
+  const [clients, setClients] = useState<Client[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState<{
@@ -116,7 +48,7 @@ export default function ClientesPage() {
   const [activeClientForAddress, setActiveClientForAddress] = useState<Client | null>(null);
   const [editingAddress, setEditingAddress] = useState<ClientAddress | null>(null);
 
-  // Cargar clientes desde Supabase (si existen las tablas creadas)
+  // Cargar clientes desde Supabase
   const fetchClients = async () => {
     try {
       setIsLoading(true);
@@ -125,14 +57,7 @@ export default function ClientesPage() {
         .select('*')
         .order('name');
 
-      if (clientsError) {
-        // Si la tabla no ha sido creada en Supabase aún, mantenemos los clientes en memoria
-        console.warn('Tablas de Supabase en modo inicial:', clientsError.message);
-        setIsLoading(false);
-        return;
-      }
-
-      if (clientsData && clientsData.length > 0) {
+      if (!clientsError && clientsData) {
         const { data: addressesData } = await supabase
           .from('client_addresses')
           .select('*')
@@ -147,7 +72,7 @@ export default function ClientesPage() {
         setClients(combined);
       }
     } catch (err) {
-      console.warn('Conexión local con Supabase activa.');
+      console.warn('Conexión inicial de clientes');
     } finally {
       setIsLoading(false);
     }
@@ -170,7 +95,6 @@ export default function ClientesPage() {
     notes: string;
   }) => {
     if (editingClient) {
-      // Actualizar cliente existente
       try {
         await supabase
           .from('clients')
@@ -182,30 +106,19 @@ export default function ClientesPage() {
           })
           .eq('id', editingClient.id);
       } catch (err) {
-        console.warn('Guardado en estado local');
+        console.warn('Actualizado local');
       }
 
       setClients((prev) =>
         prev.map((c) =>
-          c.id === editingClient.id
-            ? { ...c, ...clientData }
-            : c
+          c.id === editingClient.id ? { ...c, ...clientData } : c
         )
       );
       showFeedback('Cliente actualizado correctamente');
     } else {
-      // Crear nuevo cliente
-      const newId = `cli-${Date.now().toString().slice(-4)}`;
-      const newClient: Client = {
-        id: newId,
-        name: clientData.name,
-        phone: clientData.phone,
-        notes: clientData.notes,
-        addresses: [],
-      };
-
+      let createdId = `cli-${Date.now()}`;
       try {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('clients')
           .insert([
             {
@@ -218,11 +131,19 @@ export default function ClientesPage() {
           .single();
 
         if (data) {
-          newClient.id = data.id;
+          createdId = data.id;
         }
       } catch (err) {
-        console.warn('Guardado en memoria local');
+        console.warn('Guardado local');
       }
+
+      const newClient: Client = {
+        id: createdId,
+        name: clientData.name,
+        phone: clientData.phone,
+        notes: clientData.notes,
+        addresses: [],
+      };
 
       setClients([newClient, ...clients]);
       showFeedback('Nuevo cliente registrado exitosamente');
@@ -231,7 +152,7 @@ export default function ClientesPage() {
 
   // 2. Eliminar Cliente
   const handleDeleteClient = async (clientId: string) => {
-    if (!confirm('¿Estás seguro de eliminar este cliente y todas sus direcciones?')) {
+    if (!confirm('¿Estás seguro de eliminar este cliente y sus direcciones?')) {
       return;
     }
 
@@ -242,10 +163,10 @@ export default function ClientesPage() {
     }
 
     setClients((prev) => prev.filter((c) => c.id !== clientId));
-    showFeedback('Cliente eliminado del directorio');
+    showFeedback('Cliente eliminado');
   };
 
-  // 3. Guardar Dirección (Crear o Actualizar)
+  // 3. Guardar Dirección
   const handleSaveAddress = async (addressData: {
     label: string;
     address: string;
@@ -257,7 +178,6 @@ export default function ClientesPage() {
     if (!activeClientForAddress) return;
 
     if (editingAddress) {
-      // Actualizar dirección existente
       try {
         await supabase
           .from('client_addresses')
@@ -284,21 +204,9 @@ export default function ClientesPage() {
           return { ...c, addresses: updatedAddresses };
         })
       );
-      showFeedback('Dirección actualizada con geolocalización');
+      showFeedback('Dirección actualizada');
     } else {
-      // Crear nueva dirección
-      const newAddressId = `addr-${Date.now().toString().slice(-4)}`;
-      const newAddress: ClientAddress = {
-        id: newAddressId,
-        client_id: activeClientForAddress.id,
-        label: addressData.label,
-        address: addressData.address,
-        reference: addressData.reference,
-        latitude: addressData.latitude,
-        longitude: addressData.longitude,
-        is_default: addressData.is_default,
-      };
-
+      let createdAddrId = `addr-${Date.now()}`;
       try {
         const { data } = await supabase
           .from('client_addresses')
@@ -317,11 +225,22 @@ export default function ClientesPage() {
           .single();
 
         if (data) {
-          newAddress.id = data.id;
+          createdAddrId = data.id;
         }
       } catch (err) {
-        console.warn('Inserción local de dirección');
+        console.warn('Inserción local');
       }
+
+      const newAddress: ClientAddress = {
+        id: createdAddrId,
+        client_id: activeClientForAddress.id,
+        label: addressData.label,
+        address: addressData.address,
+        reference: addressData.reference,
+        latitude: addressData.latitude,
+        longitude: addressData.longitude,
+        is_default: addressData.is_default,
+      };
 
       setClients((prev) =>
         prev.map((c) => {
@@ -358,7 +277,6 @@ export default function ClientesPage() {
     showFeedback('Dirección eliminada');
   };
 
-  // Filtrado de Clientes
   const filteredClients = useMemo(() => {
     const q = searchTerm.toLowerCase().trim();
     if (!q) return clients;
@@ -384,43 +302,53 @@ export default function ClientesPage() {
 
   return (
     <AppNavigation>
-      <div className="space-y-8">
+      <div className="space-y-6 sm:space-y-8">
         {/* Encabezado */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <div className="flex items-center space-x-2">
               <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary-sora/15 text-primary-sora border border-primary-sora/30">
-                Directorio y Geolocalización
+                Directorio & Geolocalización
               </span>
               <span className="text-xs text-text-sora/50">•</span>
               <span className="text-xs text-text-sora/60">
-                Acceso exclusivo Administrador
+                Optimizado para iPad, PC y Móvil
               </span>
             </div>
             <h1 className="font-serif text-2xl sm:text-3xl font-bold text-text-sora mt-1 tracking-tight">
               Clientes y Direcciones de Entrega
             </h1>
             <p className="text-xs sm:text-sm text-text-sora/70">
-              Gestión de clientes, historial de preferencias, geocodificación con Google Maps y contacto vía WhatsApp.
+              Registra clientes, múltiples ubicaciones en Google Maps y contacta por WhatsApp.
             </p>
           </div>
 
-          <button
-            onClick={() => {
-              setEditingClient(null);
-              setIsClientModalOpen(true);
-            }}
-            className="inline-flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl bg-primary-sora text-white hover:bg-primary-hover text-xs sm:text-sm font-semibold transition-all shadow-md shadow-primary-sora/20 active:scale-[0.99]"
-          >
-            <UserPlus className="w-4 h-4" />
-            <span>Nuevo Cliente</span>
-          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={fetchClients}
+              disabled={isLoading}
+              className="p-2.5 rounded-xl border border-border-sora bg-white text-text-sora hover:bg-bg-sora text-xs font-semibold transition-all shadow-sm active:scale-95"
+              title="Refrescar lista"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-primary-sora' : ''}`} />
+            </button>
+            <button
+              onClick={() => {
+                setEditingClient(null);
+                setIsClientModalOpen(true);
+              }}
+              className="inline-flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl bg-primary-sora text-white hover:bg-primary-hover text-xs sm:text-sm font-semibold transition-all shadow-md shadow-primary-sora/20 active:scale-95"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>Nuevo Cliente</span>
+            </button>
+          </div>
         </div>
 
         {/* Notificación de feedback */}
         {feedbackMessage && (
           <div
-            className={`p-3.5 rounded-2xl text-xs flex items-center space-x-2 border transition-all ${
+            className={`p-3.5 rounded-2xl text-xs flex items-center space-x-2 border transition-all animate-in fade-in ${
               feedbackMessage.type === 'success'
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                 : 'bg-red-50 text-red-700 border-red-200'
@@ -431,9 +359,9 @@ export default function ClientesPage() {
           </div>
         )}
 
-        {/* Barra de Búsqueda y Métricas Rápidas */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="md:col-span-2">
+        {/* Barra de Búsqueda y Métricas (Adaptado a iPad/Tablet) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="sm:col-span-2">
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-text-sora/40">
                 <Search className="w-4 h-4" />
@@ -448,21 +376,21 @@ export default function ClientesPage() {
             </div>
           </div>
 
-          <div className="p-3.5 rounded-2xl bg-white/70 border border-border-sora shadow-sm flex items-center justify-between">
+          <div className="p-3.5 rounded-2xl bg-white/80 border border-border-sora shadow-sm flex items-center justify-between">
             <span className="text-xs text-text-sora/60">Total Clientes</span>
             <span className="text-lg font-bold text-text-sora">{clients.length}</span>
           </div>
 
-          <div className="p-3.5 rounded-2xl bg-white/70 border border-border-sora shadow-sm flex items-center justify-between">
+          <div className="p-3.5 rounded-2xl bg-white/80 border border-border-sora shadow-sm flex items-center justify-between">
             <span className="text-xs text-text-sora/60">Direcciones Mapeadas</span>
             <span className="text-lg font-bold text-primary-sora">{totalAddresses}</span>
           </div>
         </div>
 
-        {/* Lista de Tarjetas de Clientes */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Lista de Tarjetas de Clientes (Grid ergonómico para iPad y PC) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           {filteredClients.map((client) => {
-            const cleanPhone = client.phone.replace(/[^0-9]/g, '');
+            const cleanPhone = cleanPhoneNumber(client.phone);
             const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
               `Hola ${client.name}, te escribimos de Sora Cocina Casera...`
             )}`;
@@ -470,13 +398,13 @@ export default function ClientesPage() {
             return (
               <div
                 key={client.id}
-                className="bg-white/80 rounded-3xl p-5 sm:p-6 border border-border-sora shadow-sora flex flex-col justify-between hover:shadow-sora-hover transition-all"
+                className="bg-white/85 rounded-3xl p-5 sm:p-6 border border-border-sora shadow-sora flex flex-col justify-between hover:shadow-sora-hover transition-all"
               >
                 <div>
                   {/* Encabezado del Cliente */}
-                  <div className="flex items-start justify-between pb-4 border-b border-border-sora/80">
-                    <div>
-                      <h2 className="font-serif font-bold text-lg text-text-sora">
+                  <div className="flex items-start justify-between pb-3.5 border-b border-border-sora/80 gap-2">
+                    <div className="min-w-0">
+                      <h2 className="font-serif font-bold text-lg sm:text-xl text-text-sora truncate">
                         {client.name}
                       </h2>
                       <div className="flex items-center space-x-2 mt-1">
@@ -490,35 +418,35 @@ export default function ClientesPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-1.5">
+                    <div className="flex items-center space-x-1.5 flex-shrink-0">
                       {/* Botón WhatsApp Directo */}
                       <a
                         href={whatsappUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-whatsapp hover:bg-[#20bd5a] text-white text-xs font-semibold transition-all shadow-sm active:scale-[0.98]"
+                        className="inline-flex items-center space-x-1 px-3 py-2 rounded-xl bg-whatsapp hover:bg-[#20bd5a] text-white text-xs font-semibold transition-all shadow-sm active:scale-95"
                         title={`Escribir a ${client.name} por WhatsApp`}
                       >
-                        <MessageCircle className="w-3.5 h-3.5" />
-                        <span>WhatsApp</span>
+                        <MessageCircle className="w-4 h-4" />
+                        <span className="hidden sm:inline">WhatsApp</span>
                       </a>
 
-                      {/* Botón Editar Cliente */}
+                      {/* Botón Editar */}
                       <button
                         onClick={() => {
                           setEditingClient(client);
                           setIsClientModalOpen(true);
                         }}
-                        className="p-1.5 rounded-xl text-text-sora/60 hover:text-text-sora hover:bg-border-sora/40 transition-colors"
-                        title="Editar datos del cliente"
+                        className="p-2 rounded-xl text-text-sora/60 hover:text-text-sora hover:bg-border-sora/40 transition-colors"
+                        title="Editar cliente"
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
 
-                      {/* Botón Eliminar Cliente */}
+                      {/* Botón Eliminar */}
                       <button
                         onClick={() => handleDeleteClient(client.id)}
-                        className="p-1.5 rounded-xl text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors"
+                        className="p-2 rounded-xl text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors"
                         title="Eliminar cliente"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -543,7 +471,7 @@ export default function ClientesPage() {
                   <div className="mt-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-text-sora/70 uppercase tracking-wider">
-                        Direcciones Guardadas ({client.addresses?.length || 0})
+                        Direcciones ({client.addresses?.length || 0})
                       </span>
                       <button
                         onClick={() => {
@@ -551,7 +479,7 @@ export default function ClientesPage() {
                           setEditingAddress(null);
                           setIsAddressModalOpen(true);
                         }}
-                        className="inline-flex items-center space-x-1 text-xs font-semibold text-primary-sora hover:text-primary-hover transition-colors"
+                        className="inline-flex items-center space-x-1 text-xs font-semibold text-primary-sora hover:text-primary-hover transition-colors py-1 px-2 rounded-lg hover:bg-primary-sora/10"
                       >
                         <Plus className="w-3.5 h-3.5" />
                         <span>Agregar Dirección</span>
@@ -560,7 +488,7 @@ export default function ClientesPage() {
 
                     {(!client.addresses || client.addresses.length === 0) && (
                       <p className="text-xs text-text-sora/40 py-2 italic">
-                        Sin direcciones registradas aún. Haz clic en "Agregar Dirección" para geolocalizar en el mapa.
+                        Sin direcciones registradas aún. Haz clic en "Agregar Dirección" para mapear la ubicación.
                       </p>
                     )}
 
@@ -573,15 +501,9 @@ export default function ClientesPage() {
                           <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-2">
                               <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-bg-sora text-primary-sora border border-border-sora">
-                                {addr.label === 'Casa' && (
-                                  <Home className="w-3 h-3 mr-1" />
-                                )}
-                                {addr.label === 'Oficina' && (
-                                  <Briefcase className="w-3 h-3 mr-1" />
-                                )}
-                                {addr.label === 'Negocio' && (
-                                  <Store className="w-3 h-3 mr-1" />
-                                )}
+                                {addr.label === 'Casa' && <Home className="w-3 h-3 mr-1" />}
+                                {addr.label === 'Oficina' && <Briefcase className="w-3 h-3 mr-1" />}
+                                {addr.label === 'Negocio' && <Store className="w-3 h-3 mr-1" />}
                                 {addr.label}
                               </span>
                               {addr.is_default && (
@@ -598,16 +520,14 @@ export default function ClientesPage() {
                                   setEditingAddress(addr);
                                   setIsAddressModalOpen(true);
                                 }}
-                                className="p-1 rounded-lg text-text-sora/50 hover:text-text-sora hover:bg-border-sora/40 transition-colors"
-                                title="Editar dirección y mapa"
+                                className="p-1.5 rounded-lg text-text-sora/50 hover:text-text-sora hover:bg-border-sora/40 transition-colors"
+                                title="Editar dirección"
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
                               <button
-                                onClick={() =>
-                                  handleDeleteAddress(client.id, addr.id)
-                                }
-                                className="p-1 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                onClick={() => handleDeleteAddress(client.id, addr.id)}
+                                className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                                 title="Eliminar dirección"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -617,19 +537,16 @@ export default function ClientesPage() {
 
                           <div className="flex items-start space-x-1.5 text-xs text-text-sora">
                             <MapPin className="w-3.5 h-3.5 text-primary-sora flex-shrink-0 mt-0.5" />
-                            <span className="font-medium">{addr.address}</span>
+                            <span className="font-medium leading-snug">{addr.address}</span>
                           </div>
 
                           {addr.reference && (
                             <p className="text-[11px] text-text-sora/60 bg-bg-sora/50 px-2.5 py-1.5 rounded-xl border border-border-sora/50">
-                              <strong className="text-text-sora/70 font-semibold">
-                                Ref:{' '}
-                              </strong>
+                              <strong className="text-text-sora/70 font-semibold">Ref: </strong>
                               {addr.reference}
                             </p>
                           )}
 
-                          {/* Coordenadas e hipervínculo a Google Maps */}
                           {addr.latitude !== null && addr.longitude !== null && (
                             <div className="flex items-center justify-between pt-1 text-[11px]">
                               <span className="font-mono text-text-sora/50 text-[10px]">
@@ -657,14 +574,24 @@ export default function ClientesPage() {
         </div>
 
         {filteredClients.length === 0 && (
-          <div className="p-12 text-center bg-white/60 rounded-3xl border border-border-sora">
-            <Users className="w-12 h-12 mx-auto text-text-sora/30 mb-3" />
-            <p className="text-base font-bold text-text-sora">
-              No se encontraron clientes
+          <div className="p-12 text-center bg-white/80 rounded-3xl border border-border-sora shadow-sm space-y-3">
+            <Users className="w-12 h-12 mx-auto text-text-sora/30" />
+            <h3 className="text-base font-bold text-text-sora">
+              No hay clientes registrados aún
+            </h3>
+            <p className="text-xs text-text-sora/60 max-w-sm mx-auto">
+              Comienza a construir el directorio de clientes de Sora para gestionar direcciones de entrega.
             </p>
-            <p className="text-xs text-text-sora/60 mt-1 max-w-sm mx-auto">
-              Intenta con otro término de búsqueda o crea un nuevo cliente con el botón superior.
-            </p>
+            <button
+              onClick={() => {
+                setEditingClient(null);
+                setIsClientModalOpen(true);
+              }}
+              className="inline-flex items-center space-x-1.5 px-4 py-2.5 rounded-xl bg-primary-sora text-white text-xs font-semibold hover:bg-primary-hover shadow-sm"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>Registrar Primer Cliente</span>
+            </button>
           </div>
         )}
       </div>

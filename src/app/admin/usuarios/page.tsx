@@ -25,39 +25,11 @@ import {
   Search,
 } from 'lucide-react';
 
-// Usuarios de demostración representativos para el equipo de 3 roles en Sora
-const INITIAL_DEMO_USERS: Profile[] = [
-  {
-    id: 'usr-admin-1',
-    email: 'admin@sorarestaurante.com',
-    full_name: 'Administrador General',
-    role: 'admin',
-    is_active: true,
-    created_at: '2026-10-01',
-  },
-  {
-    id: 'usr-coadmin-1',
-    email: 'cocina@sorarestaurante.com',
-    full_name: 'Carolina Soto (Jefa de Cocina)',
-    role: 'coadmin',
-    is_active: true,
-    created_at: '2026-10-02',
-  },
-  {
-    id: 'usr-delivery-1',
-    email: 'reparto@sorarestaurante.com',
-    full_name: 'Pedro Valdés (Repartidor Móvil #1)',
-    role: 'delivery',
-    is_active: true,
-    created_at: '2026-10-03',
-  },
-];
-
 export default function GestionUsuariosPage() {
   const { user, profile: currentProfile, role } = useAuth();
   const supabase = useMemo(() => createClient(), []);
 
-  const [users, setUsers] = useState<Profile[]>(INITIAL_DEMO_USERS);
+  const [users, setUsers] = useState<Profile[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [feedback, setFeedback] = useState<{
@@ -95,11 +67,16 @@ export default function GestionUsuariosPage() {
 
       if (!error && data && data.length > 0) {
         setUsers(data as Profile[]);
+      } else if (currentProfile) {
+        setUsers([currentProfile]);
       } else {
-        console.warn('Cargando usuarios locales de Sora');
+        setUsers([]);
       }
     } catch (err) {
-      console.warn('Conexión local');
+      console.warn('Conexión con perfiles de Sora', err);
+      if (currentProfile) {
+        setUsers([currentProfile]);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -108,7 +85,7 @@ export default function GestionUsuariosPage() {
   useEffect(() => {
     loadUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase]);
+  }, [supabase, currentProfile]);
 
   // Abrir modal de edición
   const handleOpenEdit = (targetUser: Profile) => {
@@ -405,92 +382,121 @@ export default function GestionUsuariosPage() {
             </span>
           </div>
 
-          <div className="divide-y divide-border-sora/60">
-            {filteredUsers.map((u) => {
-              const isSelf = user?.id === u.id || currentProfile?.email === u.email;
-              const isActive = u.is_active !== false;
-
-              return (
-                <div
-                  key={u.id}
-                  className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 hover:bg-bg-sora/30 transition-colors"
+          {filteredUsers.length === 0 ? (
+            <div className="py-12 px-4 text-center">
+              <Users className="w-10 h-10 mx-auto text-text-sora/30 mb-3" />
+              <h3 className="font-serif font-bold text-base text-text-sora">
+                {searchQuery ? 'No se encontraron usuarios' : 'Sin usuarios adicionales'}
+              </h3>
+              <p className="text-xs text-text-sora/60 mt-1 max-w-sm mx-auto">
+                {searchQuery
+                  ? 'No hay cuentas que coincidan con el término de búsqueda.'
+                  : 'Registra los integrantes del equipo (Admin, Coadmin, Delivery) para conceder accesos.'}
+              </p>
+              {!searchQuery && (
+                <button
+                  onClick={() => {
+                    setInviteName('');
+                    setInviteEmail('');
+                    setInvitePassword('');
+                    setInviteRole('delivery');
+                    setIsInviteOpen(true);
+                  }}
+                  className="mt-4 inline-flex items-center space-x-1.5 px-4 py-2.5 rounded-xl bg-primary-sora text-white text-xs font-semibold hover:bg-primary-hover shadow-sm active:scale-95 transition-all"
                 >
-                  <div className="flex items-start sm:items-center space-x-3.5">
-                    <div
-                      className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-sm shadow-sm flex-shrink-0 ${
-                        u.role === 'admin'
-                          ? 'bg-primary-sora/15 text-primary-sora'
-                          : u.role === 'coadmin'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-emerald-100 text-emerald-800'
-                      }`}
-                    >
-                      {u.full_name?.charAt(0).toUpperCase() || 'U'}
-                    </div>
+                  <UserPlus className="w-4 h-4" />
+                  <span>Registrar Nuevo Usuario</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="divide-y divide-border-sora/60">
+              {filteredUsers.map((u) => {
+                const isSelf = user?.id === u.id || currentProfile?.email === u.email;
+                const isActive = u.is_active !== false;
 
-                    <div className="space-y-1">
-                      <div className="flex items-center space-x-2">
-                        <span className="font-bold text-sm text-text-sora">
-                          {u.full_name || 'Usuario sin nombre'}
-                        </span>
-                        {isSelf && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary-sora/10 text-primary-sora border border-primary-sora/20">
-                            Tú (Sesión actual)
-                          </span>
-                        )}
+                return (
+                  <div
+                    key={u.id}
+                    className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 hover:bg-bg-sora/30 transition-colors"
+                  >
+                    <div className="flex items-start sm:items-center space-x-3.5">
+                      <div
+                        className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-sm shadow-sm flex-shrink-0 ${
+                          u.role === 'admin'
+                            ? 'bg-primary-sora/15 text-primary-sora'
+                            : u.role === 'coadmin'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-emerald-100 text-emerald-800'
+                        }`}
+                      >
+                        {u.full_name?.charAt(0).toUpperCase() || 'U'}
                       </div>
-                      <p className="text-xs text-text-sora/60 flex items-center">
-                        <Mail className="w-3.5 h-3.5 mr-1 text-text-sora/40" />
-                        <span>{u.email}</span>
-                      </p>
+
+                      <div className="space-y-1">
+                        <div className="flex items-center space-x-2">
+                          <span className="font-bold text-sm text-text-sora">
+                            {u.full_name || 'Usuario sin nombre'}
+                          </span>
+                          {isSelf && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary-sora/10 text-primary-sora border border-primary-sora/20">
+                              Tú (Sesión actual)
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-text-sora/60 flex items-center">
+                          <Mail className="w-3.5 h-3.5 mr-1 text-text-sora/40" />
+                          <span>{u.email}</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between sm:justify-end space-x-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-border-sora/40">
+                      {/* BADGES DISTINTIVOS PARA CADA ROL */}
+                      {u.role === 'admin' && (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-primary-sora/15 text-primary-sora border border-primary-sora/30">
+                          <ShieldCheck className="w-3.5 h-3.5 mr-1" />
+                          Admin (Terracota)
+                        </span>
+                      )}
+                      {u.role === 'coadmin' && (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-300">
+                          <Shield className="w-3.5 h-3.5 mr-1" />
+                          Coadmin (Azul suave)
+                        </span>
+                      )}
+                      {u.role === 'delivery' && (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          <Shield className="w-3.5 h-3.5 mr-1" />
+                          Delivery (Verde)
+                        </span>
+                      )}
+
+                      {/* ESTADO ACTIVO / INACTIVO */}
+                      {isActive ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          ● Activo
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                          ● Inactivo
+                        </span>
+                      )}
+
+                      {/* BOTÓN EDITAR ROL Y ACCESOS */}
+                      <button
+                        onClick={() => handleOpenEdit(u)}
+                        className="inline-flex items-center space-x-1 py-1.5 px-3 rounded-xl border border-border-sora bg-white hover:bg-bg-sora text-text-sora text-xs font-semibold transition-all shadow-sm active:scale-95"
+                      >
+                        <Edit3 className="w-3.5 h-3.5 text-primary-sora" />
+                        <span>Editar</span>
+                      </button>
                     </div>
                   </div>
-
-                  <div className="flex items-center justify-between sm:justify-end space-x-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-border-sora/40">
-                    {/* BADGES DISTINTIVOS PARA CADA ROL */}
-                    {u.role === 'admin' && (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-primary-sora/15 text-primary-sora border border-primary-sora/30">
-                        <ShieldCheck className="w-3.5 h-3.5 mr-1" />
-                        Admin (Terracota)
-                      </span>
-                    )}
-                    {u.role === 'coadmin' && (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-300">
-                        <Shield className="w-3.5 h-3.5 mr-1" />
-                        Coadmin (Azul suave)
-                      </span>
-                    )}
-                    {u.role === 'delivery' && (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                        <Shield className="w-3.5 h-3.5 mr-1" />
-                        Delivery (Verde)
-                      </span>
-                    )}
-
-                    {/* ESTADO ACTIVO / INACTIVO */}
-                    {isActive ? (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        ● Activo
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-                        ● Inactivo
-                      </span>
-                    )}
-
-                    {/* BOTÓN EDITAR ROL Y ACCESOS */}
-                    <button
-                      onClick={() => handleOpenEdit(u)}
-                      className="inline-flex items-center space-x-1 py-1.5 px-3 rounded-xl border border-border-sora bg-white hover:bg-bg-sora text-text-sora text-xs font-semibold transition-all shadow-sm active:scale-95"
-                    >
-                      <Edit3 className="w-3.5 h-3.5 text-primary-sora" />
-                      <span>Editar</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* 2. MODAL DE EDICIÓN DE ROL Y ACCESOS */}

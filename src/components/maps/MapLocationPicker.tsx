@@ -19,10 +19,10 @@ import {
 
 const LIBRARIES: ('places')[] = ['places'];
 
-// Ubicación inicial por defecto (Santiago, Chile - Sora Cocina Casera)
+// Ubicación inicial por defecto (Santo Domingo, República Dominicana - Sora Cocina Casera)
 const DEFAULT_CENTER = {
-  lat: -33.4372,
-  lng: -70.6506,
+  lat: 18.4861,
+  lng: -69.9312,
 };
 
 const mapContainerStyle = {

@@ -1,21 +1,22 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { AppNavigation } from '@/components/layout/AppNavigation';
 import { useAuth } from '@/context/AuthContext';
+import { createClient } from '@/lib/supabase/client';
+import { formatCurrency } from '@/lib/utils';
 import {
   BarChart3,
   TrendingUp,
-  TrendingDown,
   DollarSign,
   Receipt,
   ShoppingBag,
   Calendar,
   ShieldAlert,
-  ArrowUpRight,
   PieChart,
   Percent,
-  Download,
+  RefreshCw,
+  FolderOpen,
 } from 'lucide-react';
 
 const MONTH_NAMES = [
@@ -33,122 +34,193 @@ const MONTH_NAMES = [
   'Diciembre',
 ];
 
-// Datos históricos mensuales simulados para Sora Cocina Casera
-const HISTORICAL_DATA: Record<
-  string,
-  {
-    sales: number;
-    ordersCount: number;
-    expenses: number;
-    expensesByCategory: Record<string, number>;
-  }
-> = {
-  '2026-10': {
-    sales: 4850000,
-    ordersCount: 198,
-    expenses: 2140000,
-    expensesByCategory: {
-      Insumos: 1200000,
-      Empaques: 240000,
-      Transporte: 180000,
-      Servicios: 220000,
-      Nómina: 240000,
-      Otros: 60000,
-    },
-  },
-  '2026-09': {
-    sales: 4420000,
-    ordersCount: 184,
-    expenses: 1980000,
-    expensesByCategory: {
-      Insumos: 1100000,
-      Empaques: 210000,
-      Transporte: 160000,
-      Servicios: 210000,
-      Nómina: 240000,
-      Otros: 60000,
-    },
-  },
-  '2026-08': {
-    sales: 3950000,
-    ordersCount: 165,
-    expenses: 1870000,
-    expensesByCategory: {
-      Insumos: 1050000,
-      Empaques: 190000,
-      Transporte: 140000,
-      Servicios: 200000,
-      Nómina: 230000,
-      Otros: 60000,
-    },
-  },
-  '2026-07': {
-    sales: 3820000,
-    ordersCount: 160,
-    expenses: 1790000,
-    expensesByCategory: {
-      Insumos: 1000000,
-      Empaques: 180000,
-      Transporte: 130000,
-      Servicios: 200000,
-      Nómina: 220000,
-      Otros: 60000,
-    },
-  },
-};
-
-// Datos para el gráfico de barras comparativo (últimos 6 meses)
-const CHART_PERIODS = [
-  { key: '2026-05', label: 'May', sales: 3400000, expenses: 1650000 },
-  { key: '2026-06', label: 'Jun', sales: 3600000, expenses: 1720000 },
-  { key: '2026-07', label: 'Jul', sales: 3820000, expenses: 1790000 },
-  { key: '2026-08', label: 'Ago', sales: 3950000, expenses: 1870000 },
-  { key: '2026-09', label: 'Sep', sales: 4420000, expenses: 1980000 },
-  { key: '2026-10', label: 'Oct', sales: 4850000, expenses: 2140000 },
+const MONTH_SHORT = [
+  'Ene',
+  'Feb',
+  'Mar',
+  'Abr',
+  'May',
+  'Jun',
+  'Jul',
+  'Ago',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dic',
 ];
+
+interface MonthlyData {
+  sales: number;
+  ordersCount: number;
+  expenses: number;
+  expensesByCategory: Record<string, number>;
+}
 
 export default function ReportesPage() {
   const { role } = useAuth();
+  const supabase = useMemo(() => createClient(), []);
 
-  const [selectedYear, setSelectedYear] = useState('2026');
-  const [selectedMonthIndex, setSelectedMonthIndex] = useState(9); // 9 = Octubre (0-indexed)
+  const now = new Date();
+  const [selectedYear, setSelectedYear] = useState<string>(String(now.getFullYear()));
+  const [selectedMonthIndex, setSelectedMonthIndex] = useState<number>(now.getMonth());
 
-  // Clave en formato YYYY-MM
-  const monthKey = `${selectedYear}-${String(selectedMonthIndex + 1).padStart(2, '0')}`;
+  const [rawOrders, setRawOrders] = useState<any[]>([]);
+  const [rawExpenses, setRawExpenses] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const currentData = useMemo(() => {
+  // Clave en formato YYYY-MM para el mes seleccionado
+  const selectedMonthKey = `${selectedYear}-${String(selectedMonthIndex + 1).padStart(2, '0')}`;
+
+  // Cargar datos reales desde Supabase
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      // 1. Pedidos (excluyendo cancelados para finanzas)
+      const { data: ordersData, error: ordersError } = await supabase
+        .from('orders')
+        .select('*');
+
+      if (!ordersError && ordersData) {
+        setRawOrders(ordersData);
+      }
+
+      // 2. Gastos
+      const { data: expensesData, error: expensesError } = await supabase
+        .from('expenses')
+        .select('*');
+
+      if (!expensesError && expensesData) {
+        setRawExpenses(expensesData);
+      }
+    } catch (err) {
+      console.warn('Error al consultar reportes en Supabase', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [supabase]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Agrupar órdenes y gastos por mes (clave YYYY-MM)
+  const aggregatedData = useMemo(() => {
+    const map: Record<string, MonthlyData> = {};
+
+    // Procesar pedidos
+    rawOrders.forEach((o) => {
+      const statusLower = (o.status || '').toLowerCase();
+      if (statusLower === 'cancelado') return; // Omitir cancelados
+
+      const dateStr = o.created_at || '';
+      if (!dateStr) return;
+      const key = dateStr.slice(0, 7); // 'YYYY-MM'
+
+      if (!map[key]) {
+        map[key] = {
+          sales: 0,
+          ordersCount: 0,
+          expenses: 0,
+          expensesByCategory: {},
+        };
+      }
+
+      const totalVal = parseFloat(o.total) || 0;
+      map[key].sales += totalVal;
+      map[key].ordersCount += 1;
+    });
+
+    // Procesar gastos
+    rawExpenses.forEach((e) => {
+      const dateStr = e.date || e.created_at || '';
+      if (!dateStr) return;
+      const key = dateStr.slice(0, 7); // 'YYYY-MM'
+
+      if (!map[key]) {
+        map[key] = {
+          sales: 0,
+          ordersCount: 0,
+          expenses: 0,
+          expensesByCategory: {},
+        };
+      }
+
+      const amountVal = parseFloat(e.amount) || 0;
+      map[key].expenses += amountVal;
+
+      const rawCat = (e.category || 'otros').toString().toLowerCase();
+      const catCapitalized =
+        rawCat.charAt(0).toUpperCase() + rawCat.slice(1);
+
+      map[key].expensesByCategory[catCapitalized] =
+        (map[key].expensesByCategory[catCapitalized] || 0) + amountVal;
+    });
+
+    return map;
+  }, [rawOrders, rawExpenses]);
+
+  // Datos del mes seleccionado
+  const currentData: MonthlyData = useMemo(() => {
     return (
-      HISTORICAL_DATA[monthKey] || {
-        sales: 4200000,
-        ordersCount: 175,
-        expenses: 1950000,
-        expensesByCategory: {
-          Insumos: 1100000,
-          Empaques: 200000,
-          Transporte: 150000,
-          Servicios: 200000,
-          Nómina: 240000,
-          Otros: 60000,
-        },
+      aggregatedData[selectedMonthKey] || {
+        sales: 0,
+        ordersCount: 0,
+        expenses: 0,
+        expensesByCategory: {},
       }
     );
-  }, [monthKey]);
+  }, [aggregatedData, selectedMonthKey]);
 
-  // Cálculos métricos solicitados
+  // Cálculos métricos del mes
   const totalSales = currentData.sales;
   const totalExpenses = currentData.expenses;
   const netProfit = totalSales - totalExpenses; // Utilidad Neta (Ventas - Gastos)
   const averageTicket =
     currentData.ordersCount > 0
       ? Math.round(totalSales / currentData.ordersCount)
-      : 0; // Ticket Promedio por Pedido
+      : 0;
   const profitMargin =
     totalSales > 0 ? ((netProfit / totalSales) * 100).toFixed(1) : '0';
 
+  // Períodos para el gráfico semestral (últimos 6 meses hasta el seleccionado)
+  const chartPeriods = useMemo(() => {
+    const list: Array<{
+      key: string;
+      label: string;
+      sales: number;
+      expenses: number;
+    }> = [];
+
+    const selYearNum = parseInt(selectedYear, 10);
+    const selMonthNum = selectedMonthIndex; // 0-indexed
+
+    for (let i = 5; i >= 0; i--) {
+      const targetDate = new Date(selYearNum, selMonthNum - i, 1);
+      const y = targetDate.getFullYear();
+      const m = targetDate.getMonth();
+      const key = `${y}-${String(m + 1).padStart(2, '0')}`;
+      const label = `${MONTH_SHORT[m]} ${y !== selYearNum ? "'" + String(y).slice(-2) : ''}`.trim();
+
+      const monthInfo = aggregatedData[key] || { sales: 0, expenses: 0 };
+      list.push({
+        key,
+        label,
+        sales: monthInfo.sales,
+        expenses: monthInfo.expenses,
+      });
+    }
+
+    return list;
+  }, [selectedYear, selectedMonthIndex, aggregatedData]);
+
   // Máximo para escalar las barras del gráfico
-  const maxChartValue = Math.max(
-    ...CHART_PERIODS.map((p) => Math.max(p.sales, p.expenses))
-  );
+  const maxChartValue = useMemo(() => {
+    const maxVal = Math.max(
+      ...chartPeriods.map((p) => Math.max(p.sales, p.expenses)),
+      1
+    );
+    return maxVal;
+  }, [chartPeriods]);
 
   // Verificación estricta de seguridad: Co-Admin no debe tener acceso
   if (role && role !== 'admin') {
@@ -169,9 +241,11 @@ export default function ReportesPage() {
     );
   }
 
+  const hasDataThisMonth = currentData.sales > 0 || currentData.expenses > 0;
+
   return (
     <AppNavigation>
-      <div className="space-y-8">
+      <div className="space-y-6 sm:space-y-8">
         {/* Encabezado y Selector de Fecha */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -188,12 +262,12 @@ export default function ReportesPage() {
               Reportes Financieros de Sora
             </h1>
             <p className="text-xs sm:text-sm text-text-sora/70">
-              Rentabilidad neta, balance ingresos vs. egresos y ticket promedio mensual.
+              Rentabilidad neta, balance ingresos vs. egresos y ticket promedio en Pesos Dominicanos (DOP).
             </p>
           </div>
 
           {/* SELECTOR DE MES Y AÑO */}
-          <div className="flex items-center space-x-2 bg-white/80 p-1.5 rounded-2xl border border-border-sora shadow-sm">
+          <div className="flex items-center space-x-2 bg-white/80 p-1.5 rounded-2xl border border-border-sora shadow-sm self-start sm:self-auto">
             <div className="flex items-center px-2 text-text-sora/50">
               <Calendar className="w-4 h-4" />
             </div>
@@ -216,9 +290,19 @@ export default function ReportesPage() {
               aria-label="Seleccionar año del reporte"
               className="px-2.5 py-1.5 rounded-xl border border-border-sora bg-bg-sora/50 text-text-sora text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary-sora"
             >
+              <option value="2027">2027</option>
               <option value="2026">2026</option>
               <option value="2025">2025</option>
             </select>
+
+            <button
+              onClick={fetchData}
+              disabled={isLoading}
+              title="Refrescar datos"
+              className="p-1.5 text-text-sora/50 hover:text-primary-sora rounded-lg transition-colors"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-primary-sora' : ''}`} />
+            </button>
           </div>
         </div>
 
@@ -236,11 +320,11 @@ export default function ReportesPage() {
             </div>
             <div className="mt-3">
               <p className="text-2xl font-serif font-bold text-text-sora">
-                ${totalSales.toLocaleString('es-CL')}
+                {formatCurrency(totalSales)}
               </p>
               <p className="text-[11px] text-emerald-600 flex items-center mt-1 font-medium">
                 <TrendingUp className="w-3.5 h-3.5 mr-1" />
-                {currentData.ordersCount} pedidos despachados
+                {currentData.ordersCount} pedidos en el mes
               </p>
             </div>
           </div>
@@ -257,10 +341,10 @@ export default function ReportesPage() {
             </div>
             <div className="mt-3">
               <p className="text-2xl font-serif font-bold text-primary-sora">
-                ${totalExpenses.toLocaleString('es-CL')}
+                {formatCurrency(totalExpenses)}
               </p>
               <p className="text-[11px] text-text-sora/60 flex items-center mt-1">
-                Insumos, empaques y nómina
+                Egresos registrados en el mes
               </p>
             </div>
           </div>
@@ -271,16 +355,20 @@ export default function ReportesPage() {
               <span className="text-xs font-semibold text-text-sora/60 uppercase tracking-wider">
                 Utilidad Neta
               </span>
-              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                netProfit >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
+              }`}>
                 <TrendingUp className="w-5 h-5" />
               </div>
             </div>
             <div className="mt-3">
-              <p className="text-2xl font-serif font-bold text-emerald-700">
-                +${netProfit.toLocaleString('es-CL')}
+              <p className={`text-2xl font-serif font-bold ${
+                netProfit >= 0 ? 'text-emerald-700' : 'text-red-600'
+              }`}>
+                {netProfit >= 0 ? `+${formatCurrency(netProfit)}` : formatCurrency(netProfit)}
               </p>
               <p className="text-[11px] text-text-sora/60 flex items-center mt-1 font-medium">
-                Margen neto: <strong className="text-emerald-700 ml-1">{profitMargin}%</strong>
+                Margen neto: <strong className={`ml-1 ${netProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{profitMargin}%</strong>
               </p>
             </div>
           </div>
@@ -297,18 +385,18 @@ export default function ReportesPage() {
             </div>
             <div className="mt-3">
               <p className="text-2xl font-serif font-bold text-text-sora">
-                ${averageTicket.toLocaleString('es-CL')}
+                {formatCurrency(averageTicket)}
               </p>
               <p className="text-[11px] text-text-sora/60 flex items-center mt-1">
-                Por pedido entregado
+                Por pedido registrado
               </p>
             </div>
           </div>
         </div>
 
         {/* 2. GRÁFICO COMPARATIVO DE BARRAS (INGRESOS VS. GASTOS) */}
-        <div className="bg-white/80 rounded-3xl p-6 sm:p-7 border border-border-sora shadow-sora">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-6 border-b border-border-sora gap-3">
+        <div className="bg-white/80 rounded-3xl p-5 sm:p-7 border border-border-sora shadow-sora">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-5 border-b border-border-sora gap-3">
             <div>
               <div className="flex items-center space-x-2">
                 <BarChart3 className="w-5 h-5 text-primary-sora" />
@@ -317,7 +405,7 @@ export default function ReportesPage() {
                 </h2>
               </div>
               <p className="text-xs text-text-sora/60 mt-0.5">
-                Evolución financiera mensual de Sora Cocina Casera
+                Evolución de ventas y egresos (últimos 6 meses en DOP)
               </p>
             </div>
 
@@ -335,12 +423,14 @@ export default function ReportesPage() {
           </div>
 
           {/* Contenedor del Gráfico de Barras */}
-          <div className="pt-8 pb-4">
-            <div className="h-64 sm:h-72 flex items-end justify-between gap-3 sm:gap-6 border-b border-border-sora/80 pb-4">
-              {CHART_PERIODS.map((period) => {
-                const salesHeight = (period.sales / maxChartValue) * 100;
-                const expensesHeight = (period.expenses / maxChartValue) * 100;
-                const isSelected = period.key === monthKey;
+          <div className="pt-8 pb-4 overflow-x-auto">
+            <div className="min-w-[420px] h-64 sm:h-72 flex items-end justify-between gap-3 sm:gap-6 border-b border-border-sora/80 pb-4">
+              {chartPeriods.map((period) => {
+                const salesHeight =
+                  maxChartValue > 0 ? (period.sales / maxChartValue) * 100 : 0;
+                const expensesHeight =
+                  maxChartValue > 0 ? (period.expenses / maxChartValue) * 100 : 0;
+                const isSelected = period.key === selectedMonthKey;
 
                 return (
                   <div
@@ -352,22 +442,34 @@ export default function ReportesPage() {
                     <div className="w-full flex items-end justify-center gap-1 sm:gap-2 h-full">
                       {/* Barra de Ventas */}
                       <div
-                        style={{ height: `${salesHeight}%` }}
-                        className="w-1/2 max-w-[32px] bg-emerald-600 rounded-t-xl hover:bg-emerald-700 transition-all shadow-sm relative group/bar flex items-center justify-center"
+                        style={{ height: `${Math.max(salesHeight, period.sales > 0 ? 5 : 2)}%` }}
+                        className={`w-1/2 max-w-[32px] rounded-t-xl transition-all shadow-sm relative group/bar flex items-center justify-center ${
+                          period.sales > 0
+                            ? 'bg-emerald-600 hover:bg-emerald-700'
+                            : 'bg-emerald-200/50'
+                        }`}
                       >
-                        <span className="opacity-0 group-hover/bar:opacity-100 absolute -top-8 bg-text-sora text-white text-[10px] px-2 py-0.5 rounded-md whitespace-nowrap transition-opacity shadow-md z-10 font-mono">
-                          ${(period.sales / 1000).toFixed(0)}k
-                        </span>
+                        {period.sales > 0 && (
+                          <span className="opacity-0 group-hover/bar:opacity-100 absolute -top-8 bg-text-sora text-white text-[10px] px-2 py-0.5 rounded-md whitespace-nowrap transition-opacity shadow-md z-10 font-mono">
+                            {formatCurrency(period.sales)}
+                          </span>
+                        )}
                       </div>
 
                       {/* Barra de Gastos */}
                       <div
-                        style={{ height: `${expensesHeight}%` }}
-                        className="w-1/2 max-w-[32px] bg-primary-sora rounded-t-xl hover:bg-primary-hover transition-all shadow-sm relative group/bar flex items-center justify-center"
+                        style={{ height: `${Math.max(expensesHeight, period.expenses > 0 ? 5 : 2)}%` }}
+                        className={`w-1/2 max-w-[32px] rounded-t-xl transition-all shadow-sm relative group/bar flex items-center justify-center ${
+                          period.expenses > 0
+                            ? 'bg-primary-sora hover:bg-primary-hover'
+                            : 'bg-primary-sora/20'
+                        }`}
                       >
-                        <span className="opacity-0 group-hover/bar:opacity-100 absolute -top-8 bg-text-sora text-white text-[10px] px-2 py-0.5 rounded-md whitespace-nowrap transition-opacity shadow-md z-10 font-mono">
-                          ${(period.expenses / 1000).toFixed(0)}k
-                        </span>
+                        {period.expenses > 0 && (
+                          <span className="opacity-0 group-hover/bar:opacity-100 absolute -top-8 bg-text-sora text-white text-[10px] px-2 py-0.5 rounded-md whitespace-nowrap transition-opacity shadow-md z-10 font-mono">
+                            {formatCurrency(period.expenses)}
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -392,7 +494,7 @@ export default function ReportesPage() {
 
         {/* 3. DESGLOSE DE GASTOS POR CATEGORÍA DEL MES SELECCIONADO */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white/80 rounded-3xl p-6 border border-border-sora shadow-sora">
+          <div className="bg-white/80 rounded-3xl p-5 sm:p-6 border border-border-sora shadow-sora">
             <div className="flex items-center justify-between pb-4 border-b border-border-sora mb-5">
               <div className="flex items-center space-x-2">
                 <PieChart className="w-4 h-4 text-primary-sora" />
@@ -401,82 +503,118 @@ export default function ReportesPage() {
                 </h3>
               </div>
               <span className="text-xs text-text-sora/60 font-semibold font-mono">
-                ${totalExpenses.toLocaleString('es-CL')}
+                {formatCurrency(totalExpenses)}
               </span>
             </div>
 
-            <div className="space-y-4">
-              {Object.entries(currentData.expensesByCategory).map(([cat, amount]) => {
-                const percentage = ((amount / totalExpenses) * 100).toFixed(1);
-                return (
-                  <div key={cat} className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-medium text-text-sora">{cat}</span>
-                      <div className="flex items-center space-x-2">
-                        <span className="font-mono text-text-sora/60">
-                          ${amount.toLocaleString('es-CL')}
-                        </span>
-                        <span className="font-bold text-text-sora text-[11px] w-12 text-right">
-                          {percentage}%
-                        </span>
+            {Object.keys(currentData.expensesByCategory).length > 0 ? (
+              <div className="space-y-4">
+                {Object.entries(currentData.expensesByCategory).map(([cat, amount]) => {
+                  const percentage =
+                    totalExpenses > 0
+                      ? ((amount / totalExpenses) * 100).toFixed(1)
+                      : '0';
+                  return (
+                    <div key={cat} className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-medium text-text-sora">{cat}</span>
+                        <div className="flex items-center space-x-2">
+                          <span className="font-mono text-text-sora/60">
+                            {formatCurrency(amount)}
+                          </span>
+                          <span className="font-bold text-text-sora text-[11px] w-12 text-right">
+                            {percentage}%
+                          </span>
+                        </div>
+                      </div>
+                      {/* Barra de progreso visual */}
+                      <div className="w-full h-2 rounded-full bg-bg-sora border border-border-sora/60 overflow-hidden">
+                        <div
+                          style={{ width: `${percentage}%` }}
+                          className="h-full bg-primary-sora rounded-full"
+                        />
                       </div>
                     </div>
-                    {/* Barra de progreso visual */}
-                    <div className="w-full h-2 rounded-full bg-bg-sora border border-border-sora/60 overflow-hidden">
-                      <div
-                        style={{ width: `${percentage}%` }}
-                        className="h-full bg-primary-sora rounded-full"
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="py-10 text-center text-text-sora/50">
+                <FolderOpen className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                <p className="text-xs">No hay egresos registrados para este mes.</p>
+              </div>
+            )}
           </div>
 
-          {/* Resumen Ejecutivo y Recomendaciones */}
-          <div className="bg-white/80 rounded-3xl p-6 border border-border-sora shadow-sora flex flex-col justify-between">
+          {/* Resumen Ejecutivo y Diagnóstico */}
+          <div className="bg-white/80 rounded-3xl p-5 sm:p-6 border border-border-sora shadow-sora flex flex-col justify-between">
             <div>
               <div className="flex items-center space-x-2 pb-4 border-b border-border-sora mb-4">
                 <Percent className="w-4 h-4 text-primary-sora" />
                 <h3 className="font-serif font-bold text-base text-text-sora">
-                  Diagnóstico de Eficiencia
+                  Diagnóstico Financiero
                 </h3>
               </div>
 
-              <div className="space-y-3.5 text-xs text-text-sora/80">
-                <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200">
-                  <p className="font-semibold text-emerald-800">
-                    ✓ Margen Operativo Saludable ({profitMargin}%)
-                  </p>
-                  <p className="text-[11px] text-emerald-700 mt-0.5">
-                    El restaurante mantiene un ratio de utilidad neta superior al estándar de gastronomía casera (30-40%).
-                  </p>
-                </div>
+              {hasDataThisMonth ? (
+                <div className="space-y-3.5 text-xs text-text-sora/80">
+                  <div
+                    className={`p-3.5 rounded-2xl border ${
+                      netProfit >= 0
+                        ? 'bg-emerald-50 border-emerald-200'
+                        : 'bg-rose-50 border-rose-200'
+                    }`}
+                  >
+                    <p
+                      className={`font-semibold ${
+                        netProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'
+                      }`}
+                    >
+                      {netProfit >= 0
+                        ? `✓ Balance Positivo (Margen Neto: ${profitMargin}%)`
+                        : `⚠ Balance Negativo (${profitMargin}%)`}
+                    </p>
+                    <p
+                      className={`text-[11px] mt-0.5 ${
+                        netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                      }`}
+                    >
+                      {netProfit >= 0
+                        ? 'Las ventas del período cubren la totalidad de los costos operativos y generan margen a favor.'
+                        : 'Los costos superan los ingresos generados durante este período. Revisa las categorías de mayor gasto.'}
+                    </p>
+                  </div>
 
-                <div className="p-3.5 rounded-2xl bg-bg-sora/80 border border-border-sora">
-                  <p className="font-semibold text-text-sora">
-                    • Insumos Frescos representa el 56% de los egresos
-                  </p>
-                  <p className="text-[11px] text-text-sora/60 mt-0.5">
-                    Mayor concentración en carnes y verduras de La Vega. Controlar mermas semanales para maximizar margen.
-                  </p>
-                </div>
+                  <div className="p-3.5 rounded-2xl bg-bg-sora/80 border border-border-sora">
+                    <p className="font-semibold text-text-sora">
+                      • Ticket Promedio: {formatCurrency(averageTicket)}
+                    </p>
+                    <p className="text-[11px] text-text-sora/60 mt-0.5">
+                      Promedio de consumo generado por cada pedido registrado en Sora Cocina Casera.
+                    </p>
+                  </div>
 
-                <div className="p-3.5 rounded-2xl bg-bg-sora/80 border border-border-sora">
-                  <p className="font-semibold text-text-sora">
-                    • Ticket Promedio: ${averageTicket.toLocaleString('es-CL')}
-                  </p>
-                  <p className="text-[11px] text-text-sora/60 mt-0.5">
-                    Los pedidos familiares y combos de pastel de choclo con ensalada elevan el ticket promedio.
+                  <div className="p-3.5 rounded-2xl bg-bg-sora/80 border border-border-sora">
+                    <p className="font-semibold text-text-sora">
+                      • Actividad de Pedidos: {currentData.ordersCount} despachos
+                    </p>
+                    <p className="text-[11px] text-text-sora/60 mt-0.5">
+                      Volumen de entregas registradas en el período seleccionado.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="py-10 text-center text-text-sora/50">
+                  <p className="text-xs">
+                    Selecciona un período con órdenes y gastos registrados para ver el diagnóstico automático de rentabilidad.
                   </p>
                 </div>
-              </div>
+              )}
             </div>
 
             <div className="pt-4 border-t border-border-sora mt-4">
               <span className="text-[11px] text-text-sora/50 italic">
-                * Todos los valores se calculan automáticamente en base a las ventas y gastos registrados en el sistema.
+                * Todos los valores se calculan automáticamente en base a las ventas y gastos registrados en la base de datos de Sora.
               </span>
             </div>
           </div>
