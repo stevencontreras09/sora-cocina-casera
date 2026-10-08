@@ -11,6 +11,7 @@ import {
   APP_PERMISSIONS,
   DEFAULT_ROLE_PERMISSIONS,
 } from '@/types/database.types';
+import { notifyAutoSave } from '@/lib/storage';
 import {
   UserCog,
   UserPlus,
@@ -195,6 +196,7 @@ export default function GestionUsuariosPage() {
 
     setIsSavingEdit(false);
     setEditingUser(null);
+    notifyAutoSave('Usuarios');
     showFeedback(`Accesos y permisos actualizados para ${editingUser.full_name || editingUser.email}`);
   };
 
@@ -225,6 +227,7 @@ export default function GestionUsuariosPage() {
 
     setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id));
     setIsDeletingUser(false);
+    notifyAutoSave('Usuarios');
     showFeedback(`Usuario ${userToDelete.full_name || userToDelete.email} eliminado del sistema.`);
     setUserToDelete(null);
   };
@@ -295,6 +298,7 @@ export default function GestionUsuariosPage() {
     setInviteName('');
     setInviteEmail('');
     setInvitePassword('');
+    notifyAutoSave('Usuarios');
     showFeedback(`¡Usuario ${newProfile.full_name} registrado con rol ${inviteRole.toUpperCase()} y accesos configurados!`);
   };
 

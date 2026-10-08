@@ -7,6 +7,12 @@ import { Expense, ExpenseCategory } from '@/types/database.types';
 import { createClient } from '@/lib/supabase/client';
 import { formatCurrency } from '@/lib/utils';
 import {
+  saveStoredExpenses,
+  getStoredExpenses,
+  isValidUuid,
+  generateUuid,
+} from '@/lib/storage';
+import {
   Receipt,
   PlusCircle,
   TrendingDown,
@@ -33,7 +39,7 @@ export default function GastosPage() {
   const { user, profile, role } = useAuth();
   const supabase = useMemo(() => createClient(), []);
 
-  // Lista limpia inicial sin datos ficticios
+  // Lista con respaldo de autoguardado persistente
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<ExpenseCategory | 'todos'>('todos');
   const [selectedMonth, setSelectedMonth] = useState<string>(
@@ -50,7 +56,7 @@ export default function GastosPage() {
   const [formSuccess, setFormSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Cargar gastos reales de Supabase
+  // Cargar gastos reales de Supabase con respaldo local
   const loadExpenses = async () => {
     setIsLoading(true);
     try {
@@ -59,11 +65,16 @@ export default function GastosPage() {
         .select('*')
         .order('date', { ascending: false });
 
-      if (!error && data) {
+      if (!error && data && data.length > 0) {
         setExpenses(data as Expense[]);
+        saveStoredExpenses(data as Expense[]);
+      } else {
+        const cached = getStoredExpenses();
+        if (cached.length > 0) setExpenses(cached);
       }
     } catch (err) {
-      console.warn('Gastos en modo local');
+      const cached = getStoredExpenses();
+      if (cached.length > 0) setExpenses(cached);
     } finally {
       setIsLoading(false);
     }
@@ -74,40 +85,17 @@ export default function GastosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase]);
 
-  // Manejar creación de gasto vinculando created_by
+  // Manejar creación de gasto con autoguardado y validación de UUID
   const handleAddExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!description.trim() || !amount) return;
 
     setIsSubmitting(true);
-    let createdId = `gst-${Date.now()}`;
+    const newId = generateUuid();
     const parsedAmount = parseFloat(amount);
 
-    try {
-      const { data } = await supabase
-        .from('expenses')
-        .insert([
-          {
-            description: description.trim(),
-            amount: parsedAmount,
-            category: category,
-            date: date,
-            created_by: user?.id || null,
-            created_by_name: profile?.full_name || 'Personal Sora',
-          },
-        ])
-        .select()
-        .single();
-
-      if (data) {
-        createdId = data.id;
-      }
-    } catch (err) {
-      console.warn('Guardado local de gasto');
-    }
-
     const newExpense: Expense = {
-      id: createdId,
+      id: newId,
       description: description.trim(),
       amount: parsedAmount,
       category: category,
@@ -116,7 +104,30 @@ export default function GastosPage() {
       created_by_name: profile?.full_name || user?.email?.split('@')[0] || 'Personal Sora',
     };
 
-    setExpenses([newExpense, ...expenses]);
+    // 1. Guardar de inmediato en almacenamiento local (cero pérdida de datos)
+    const updated = [newExpense, ...expenses];
+    setExpenses(updated);
+    saveStoredExpenses(updated);
+
+    // 2. Guardar en Supabase
+    try {
+      const payload: any = {
+        id: newId,
+        description: description.trim(),
+        amount: parsedAmount,
+        category: category,
+        date: date,
+        created_by_name: profile?.full_name || 'Personal Sora',
+      };
+      if (isValidUuid(user?.id)) {
+        payload.created_by = user?.id;
+      }
+
+      await supabase.from('expenses').insert([payload]);
+    } catch (err) {
+      console.warn('Gasto guardado en respaldo local');
+    }
+
     setDescription('');
     setAmount('');
     setIsSubmitting(false);
@@ -130,12 +141,18 @@ export default function GastosPage() {
 
   const handleDeleteExpense = async (id: string) => {
     if (!confirm('¿Deseas eliminar este registro de gasto?')) return;
+
+    const updated = expenses.filter((e) => e.id !== id);
+    setExpenses(updated);
+    saveStoredExpenses(updated);
+
     try {
-      await supabase.from('expenses').delete().eq('id', id);
+      if (isValidUuid(id)) {
+        await supabase.from('expenses').delete().eq('id', id);
+      }
     } catch (err) {
       console.warn('Eliminado local');
     }
-    setExpenses(expenses.filter((e) => e.id !== id));
   };
 
   // Filtrado interactivo por Mes y Categoría

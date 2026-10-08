@@ -9,6 +9,12 @@ import { ClientModal } from '@/components/clientes/ClientModal';
 import { AddressModal } from '@/components/clientes/AddressModal';
 import { cleanPhoneNumber } from '@/lib/utils';
 import {
+  saveStoredClients,
+  getStoredClients,
+  isValidUuid,
+  generateUuid,
+} from '@/lib/storage';
+import {
   Users,
   UserPlus,
   Search,
@@ -31,7 +37,7 @@ export default function ClientesPage() {
   const { role } = useAuth();
   const supabase = useMemo(() => createClient(), []);
 
-  // Lista limpia inicial
+  // Lista con respaldo de autoguardado
   const [clients, setClients] = useState<Client[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -48,7 +54,7 @@ export default function ClientesPage() {
   const [activeClientForAddress, setActiveClientForAddress] = useState<Client | null>(null);
   const [editingAddress, setEditingAddress] = useState<ClientAddress | null>(null);
 
-  // Cargar clientes desde Supabase
+  // Cargar clientes desde Supabase con respaldo local
   const fetchClients = async () => {
     try {
       setIsLoading(true);
@@ -57,7 +63,7 @@ export default function ClientesPage() {
         .select('*')
         .order('name');
 
-      if (!clientsError && clientsData) {
+      if (!clientsError && clientsData && clientsData.length > 0) {
         const { data: addressesData } = await supabase
           .from('client_addresses')
           .select('*')
@@ -70,9 +76,16 @@ export default function ClientesPage() {
           ),
         }));
         setClients(combined);
+        saveStoredClients(combined);
+      } else {
+        const cached = getStoredClients();
+        if (cached.length > 0) {
+          setClients(cached);
+        }
       }
     } catch (err) {
-      console.warn('Conexión inicial de clientes');
+      const cached = getStoredClients();
+      if (cached.length > 0) setClients(cached);
     } finally {
       setIsLoading(false);
     }
@@ -88,65 +101,66 @@ export default function ClientesPage() {
     setTimeout(() => setFeedbackMessage(null), 3000);
   };
 
-  // 1. Guardar Cliente (Crear o Actualizar)
+  // 1. Guardar Cliente (Crear o Actualizar con Autoguardado)
   const handleSaveClient = async (clientData: {
     name: string;
     phone: string;
     notes: string;
   }) => {
     if (editingClient) {
-      try {
-        await supabase
-          .from('clients')
-          .update({
-            name: clientData.name,
-            phone: clientData.phone,
-            notes: clientData.notes,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', editingClient.id);
-      } catch (err) {
-        console.warn('Actualizado local');
-      }
-
-      setClients((prev) =>
-        prev.map((c) =>
-          c.id === editingClient.id ? { ...c, ...clientData } : c
-        )
+      const updatedList = clients.map((c) =>
+        c.id === editingClient.id ? { ...c, ...clientData } : c
       );
-      showFeedback('Cliente actualizado correctamente');
-    } else {
-      let createdId = `cli-${Date.now()}`;
+      setClients(updatedList);
+      saveStoredClients(updatedList);
+
       try {
-        const { data } = await supabase
-          .from('clients')
-          .insert([
-            {
+        if (isValidUuid(editingClient.id)) {
+          await supabase
+            .from('clients')
+            .update({
               name: clientData.name,
               phone: clientData.phone,
               notes: clientData.notes,
-            },
-          ])
-          .select()
-          .single();
-
-        if (data) {
-          createdId = data.id;
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', editingClient.id);
         }
       } catch (err) {
-        console.warn('Guardado local');
+        console.warn('Actualizado en respaldo local');
       }
 
+      showFeedback('Cliente actualizado correctamente');
+    } else {
+      const newClientId = generateUuid();
       const newClient: Client = {
-        id: createdId,
+        id: newClientId,
         name: clientData.name,
         phone: clientData.phone,
         notes: clientData.notes,
         addresses: [],
       };
 
-      setClients([newClient, ...clients]);
-      showFeedback('Nuevo cliente registrado exitosamente');
+      const updatedList = [newClient, ...clients];
+      setClients(updatedList);
+      saveStoredClients(updatedList);
+
+      try {
+        await supabase
+          .from('clients')
+          .insert([
+            {
+              id: newClientId,
+              name: clientData.name,
+              phone: clientData.phone,
+              notes: clientData.notes,
+            },
+          ]);
+      } catch (err) {
+        console.warn('Cliente guardado en respaldo local');
+      }
+
+      showFeedback('Nuevo cliente registrado y guardado automáticamente');
     }
   };
 
@@ -156,13 +170,18 @@ export default function ClientesPage() {
       return;
     }
 
+    const updated = clients.filter((c) => c.id !== clientId);
+    setClients(updated);
+    saveStoredClients(updated);
+
     try {
-      await supabase.from('clients').delete().eq('id', clientId);
+      if (isValidUuid(clientId)) {
+        await supabase.from('clients').delete().eq('id', clientId);
+      }
     } catch (err) {
       console.warn('Eliminado local');
     }
 
-    setClients((prev) => prev.filter((c) => c.id !== clientId));
     showFeedback('Cliente eliminado');
   };
 
@@ -178,61 +197,40 @@ export default function ClientesPage() {
     if (!activeClientForAddress) return;
 
     if (editingAddress) {
-      try {
-        await supabase
-          .from('client_addresses')
-          .update({
-            label: addressData.label,
-            address: addressData.address,
-            reference: addressData.reference,
-            latitude: addressData.latitude,
-            longitude: addressData.longitude,
-            is_default: addressData.is_default,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', editingAddress.id);
-      } catch (err) {
-        console.warn('Actualización local de dirección');
-      }
+      const updatedClients = clients.map((c) => {
+        if (c.id !== activeClientForAddress.id) return c;
+        const updatedAddresses = (c.addresses || []).map((a) =>
+          a.id === editingAddress.id ? { ...a, ...addressData } : a
+        );
+        return { ...c, addresses: updatedAddresses };
+      });
+      setClients(updatedClients);
+      saveStoredClients(updatedClients);
 
-      setClients((prev) =>
-        prev.map((c) => {
-          if (c.id !== activeClientForAddress.id) return c;
-          const updatedAddresses = (c.addresses || []).map((a) =>
-            a.id === editingAddress.id ? { ...a, ...addressData } : a
-          );
-          return { ...c, addresses: updatedAddresses };
-        })
-      );
-      showFeedback('Dirección actualizada');
-    } else {
-      let createdAddrId = `addr-${Date.now()}`;
       try {
-        const { data } = await supabase
-          .from('client_addresses')
-          .insert([
-            {
-              client_id: activeClientForAddress.id,
+        if (isValidUuid(editingAddress.id)) {
+          await supabase
+            .from('client_addresses')
+            .update({
               label: addressData.label,
               address: addressData.address,
               reference: addressData.reference,
               latitude: addressData.latitude,
               longitude: addressData.longitude,
               is_default: addressData.is_default,
-            },
-          ])
-          .select()
-          .single();
-
-        if (data) {
-          createdAddrId = data.id;
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', editingAddress.id);
         }
       } catch (err) {
-        console.warn('Inserción local');
+        console.warn('Actualización local de dirección');
       }
 
+      showFeedback('Dirección actualizada');
+    } else {
+      const newAddrId = generateUuid();
       const newAddress: ClientAddress = {
-        id: createdAddrId,
+        id: newAddrId,
         client_id: activeClientForAddress.id,
         label: addressData.label,
         address: addressData.address,
@@ -242,16 +240,35 @@ export default function ClientesPage() {
         is_default: addressData.is_default,
       };
 
-      setClients((prev) =>
-        prev.map((c) => {
-          if (c.id !== activeClientForAddress.id) return c;
-          return {
-            ...c,
-            addresses: [...(c.addresses || []), newAddress],
-          };
-        })
-      );
-      showFeedback('Nueva dirección geolocalizada añadida');
+      const updatedClients = clients.map((c) => {
+        if (c.id !== activeClientForAddress.id) return c;
+        return {
+          ...c,
+          addresses: [...(c.addresses || []), newAddress],
+        };
+      });
+      setClients(updatedClients);
+      saveStoredClients(updatedClients);
+
+      try {
+        const payload: any = {
+          id: newAddrId,
+          label: addressData.label,
+          address: addressData.address,
+          reference: addressData.reference || null,
+          latitude: addressData.latitude || null,
+          longitude: addressData.longitude || null,
+          is_default: addressData.is_default || false,
+        };
+        if (isValidUuid(activeClientForAddress.id)) {
+          payload.client_id = activeClientForAddress.id;
+        }
+        await supabase.from('client_addresses').insert([payload]);
+      } catch (err) {
+        console.warn('Dirección guardada en respaldo local');
+      }
+
+      showFeedback('Nueva dirección geolocalizada añadida y guardada');
     }
   };
 
@@ -259,21 +276,24 @@ export default function ClientesPage() {
   const handleDeleteAddress = async (clientId: string, addressId: string) => {
     if (!confirm('¿Deseas eliminar esta dirección?')) return;
 
+    const updated = clients.map((c) => {
+      if (c.id !== clientId) return c;
+      return {
+        ...c,
+        addresses: (c.addresses || []).filter((a) => a.id !== addressId),
+      };
+    });
+    setClients(updated);
+    saveStoredClients(updated);
+
     try {
-      await supabase.from('client_addresses').delete().eq('id', addressId);
+      if (isValidUuid(addressId)) {
+        await supabase.from('client_addresses').delete().eq('id', addressId);
+      }
     } catch (err) {
       console.warn('Eliminado local');
     }
 
-    setClients((prev) =>
-      prev.map((c) => {
-        if (c.id !== clientId) return c;
-        return {
-          ...c,
-          addresses: (c.addresses || []).filter((a) => a.id !== addressId),
-        };
-      })
-    );
     showFeedback('Dirección eliminada');
   };
 

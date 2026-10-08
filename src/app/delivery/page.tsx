@@ -4,8 +4,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { AppNavigation } from '@/components/layout/AppNavigation';
 import { useAuth } from '@/context/AuthContext';
 import { createClient } from '@/lib/supabase/client';
-import { Order } from '@/types/database.types';
+import { Order, OrderStatus } from '@/types/database.types';
 import { formatCurrency, cleanPhoneNumber } from '@/lib/utils';
+import { getStoredOrders, saveStoredOrders, isValidUuid } from '@/lib/storage';
 import {
   Truck,
   Phone,
@@ -19,13 +20,14 @@ import {
   RefreshCw,
   Package,
   Layers,
+  Calendar,
 } from 'lucide-react';
 
 export default function DeliveryMobilePage() {
   const { user, profile, role } = useAuth();
   const supabase = useMemo(() => createClient(), []);
 
-  // Lista limpia inicial sin datos ficticios
+  // Lista limpia inicial con carga desde almacenamiento local si existe
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'activos' | 'historial'>('activos');
@@ -35,9 +37,20 @@ export default function DeliveryMobilePage() {
   const [isDelivering, setIsDelivering] = useState(false);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
-  // 1. Cargar pedidos asignados desde Supabase
+  // 1. Cargar pedidos asignados desde almacenamiento local y Supabase
   const loadAssignedOrders = async () => {
     setIsLoading(true);
+
+    // Carga inicial rápida de respaldo local
+    const cachedOrders = getStoredOrders();
+    if (cachedOrders && cachedOrders.length > 0) {
+      if (role === 'delivery' && user?.id) {
+        setOrders(cachedOrders.filter((o) => o.delivery_user_id === user.id));
+      } else {
+        setOrders(cachedOrders);
+      }
+    }
+
     try {
       let query = supabase.from('orders').select('*');
 
@@ -48,11 +61,12 @@ export default function DeliveryMobilePage() {
 
       const { data, error } = await query.order('created_at', { ascending: false });
 
-      if (!error && data) {
+      if (!error && data && data.length > 0) {
         setOrders(data as Order[]);
+        saveStoredOrders(data as Order[]);
       }
     } catch (err) {
-      console.warn('Conexión inicial de delivery');
+      console.warn('Conexión inicial de delivery, usando respaldo');
     } finally {
       setIsLoading(false);
     }
@@ -78,18 +92,22 @@ export default function DeliveryMobilePage() {
 
   // 2. Acción: Iniciar Ruta (cambia estado a 'En Camino')
   const handleStartRoute = async (orderId: string) => {
+    const updated: Order[] = orders.map((o) =>
+      o.id === orderId ? { ...o, status: 'En Camino' as OrderStatus } : o
+    );
+    setOrders(updated);
+    saveStoredOrders(updated);
+
     try {
-      await supabase
-        .from('orders')
-        .update({ status: 'En Camino', updated_at: new Date().toISOString() })
-        .eq('id', orderId);
+      if (isValidUuid(orderId)) {
+        await supabase
+          .from('orders')
+          .update({ status: 'En Camino', updated_at: new Date().toISOString() })
+          .eq('id', orderId);
+      }
     } catch (err) {
       console.warn('Actualización local de estado');
     }
-
-    setOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, status: 'En Camino' } : o))
-    );
 
     setSuccessBanner('¡Ruta iniciada! El cliente sabe que vas en camino.');
     setTimeout(() => setSuccessBanner(null), 3000);
@@ -100,20 +118,22 @@ export default function DeliveryMobilePage() {
     if (!orderToDeliver) return;
 
     setIsDelivering(true);
+    const updated: Order[] = orders.map((o) =>
+      o.id === orderToDeliver.id ? { ...o, status: 'Entregado' as OrderStatus } : o
+    );
+    setOrders(updated);
+    saveStoredOrders(updated);
+
     try {
-      await supabase
-        .from('orders')
-        .update({ status: 'Entregado', updated_at: new Date().toISOString() })
-        .eq('id', orderToDeliver.id);
+      if (isValidUuid(orderToDeliver.id)) {
+        await supabase
+          .from('orders')
+          .update({ status: 'Entregado', updated_at: new Date().toISOString() })
+          .eq('id', orderToDeliver.id);
+      }
     } catch (err) {
       console.warn('Actualización local a entregado');
     }
-
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.id === orderToDeliver.id ? { ...o, status: 'Entregado' } : o
-      )
-    );
 
     setSuccessBanner(`¡Pedido #${orderToDeliver.order_number} entregado con éxito! 🎉`);
     setIsDelivering(false);
@@ -248,6 +268,27 @@ export default function DeliveryMobilePage() {
                       </div>
                     )}
                   </div>
+
+                  {/* HORARIO PROGRAMADO DE ENTREGA */}
+                  {(order.delivery_time || order.delivery_date) && (
+                    <div className="flex items-center justify-between p-2.5 rounded-2xl bg-amber-50/80 border border-amber-200/80 text-amber-900 text-xs">
+                      <div className="flex items-center space-x-2">
+                        <Clock className="w-4 h-4 text-amber-700 flex-shrink-0" />
+                        <span className="font-semibold">
+                          {order.is_scheduled ? 'Programado:' : 'Hora de entrega:'}{' '}
+                          <span className="font-bold text-amber-950">
+                            {order.delivery_time || 'Inmediata'}
+                          </span>
+                        </span>
+                      </div>
+                      {order.delivery_date && (
+                        <div className="flex items-center space-x-1 text-[11px] font-mono text-amber-800 bg-amber-100/70 px-2 py-0.5 rounded-lg">
+                          <Calendar className="w-3 h-3" />
+                          <span>{order.delivery_date}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* CLIENTE Y PRODUCTOS */}
                   <div className="space-y-1.5">

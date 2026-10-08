@@ -2,41 +2,51 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { AppNavigation } from '@/components/layout/AppNavigation';
-import { useAuth } from '@/context/AuthContext';
 import { createClient } from '@/lib/supabase/client';
-import { formatCurrency, cleanPhoneNumber } from '@/lib/utils';
 import {
-  Client,
   Order,
+  Client,
   OrderItem,
   PaymentMethod,
   PaymentStatus,
+  OrderStatus,
 } from '@/types/database.types';
+import { formatCurrency, cleanPhoneNumber } from '@/lib/utils';
+import {
+  saveStoredOrders,
+  getStoredOrders,
+  getStoredClients,
+  saveStoredClients,
+  isValidUuid,
+  generateUuid,
+} from '@/lib/storage';
+import { triggerKitchenAlert } from '@/lib/audioAlerts';
+import { ProductionReminderAlerts } from '@/components/alerts/ProductionReminderAlerts';
 import {
   ShoppingBag,
   Plus,
   Trash2,
   User,
   MapPin,
-  DollarSign,
+  Clock,
+  CheckCircle2,
+  MessageCircle,
+  Truck,
   CreditCard,
   Banknote,
-  Truck,
-  CheckCircle2,
-  Clock,
-  Phone,
   Search,
-  MessageCircle,
   AlertCircle,
   RefreshCw,
+  Calendar,
+  Flame,
+  Bell,
+  Sparkles,
 } from 'lucide-react';
 
-// Carta sugerida con precios estándar en Pesos Dominicanos (DOP / RD$)
 const MENU_ITEMS = [
   { name: 'Plato Casero del Día', price: 350 },
-  { name: 'Pollo Guisado con Arroz y Habichuelas', price: 325 },
-  { name: 'Mofongo con Chicharrón Casero', price: 450 },
-  { name: 'Sancocho Tradicional con Arroz', price: 475 },
+  { name: 'Pollo Guisado con Arroz y Habichuelas', price: 375 },
+  { name: 'Res Guisada Tradicional', price: 425 },
   { name: 'Chivo Liniero al Caldero', price: 550 },
   { name: 'Pescado con Coco Tradicional', price: 525 },
   { name: 'Lasaña Casera Horneada', price: 390 },
@@ -48,7 +58,7 @@ const MENU_ITEMS = [
 export default function VentasPage() {
   const supabase = useMemo(() => createClient(), []);
 
-  // Clientes y Repartidores reales
+  // Clientes y Repartidores
   const [clients, setClients] = useState<Client[]>([]);
   const [deliveryDrivers, setDeliveryDrivers] = useState<{ id: string; name: string }[]>([]);
 
@@ -71,24 +81,32 @@ export default function VentasPage() {
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('pagado');
   const [deliveryUserId, setDeliveryUserId] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
+
+  // HORARIO Y FECHA DE ENTREGA (NUEVO REQUERIMIENTO)
+  const todayStr = new Date().toISOString().split('T')[0];
+  const [deliveryDate, setDeliveryDate] = useState<string>(todayStr);
+  const [deliveryTime, setDeliveryTime] = useState<string>('');
+  const [isScheduled, setIsScheduled] = useState<boolean>(false);
+  const [productionReminderTime, setProductionReminderTime] = useState<string>('60m');
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
 
-  // Lista limpia de pedidos reales
+  // Lista de pedidos reales
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
 
-  // Cargar datos reales desde Supabase
+  // Cargar datos (Supabase + Respaldo Local Auto-guardado)
   const loadData = async () => {
     setIsLoadingOrders(true);
     try {
-      // 1. Clientes y Direcciones
+      // 1. Cargar Clientes
       const { data: clientsData } = await supabase
         .from('clients')
         .select('*')
         .order('name');
 
-      if (clientsData) {
+      if (clientsData && clientsData.length > 0) {
         const { data: addressesData } = await supabase
           .from('client_addresses')
           .select('*');
@@ -98,9 +116,15 @@ export default function VentasPage() {
           addresses: (addressesData || []).filter((a) => a.client_id === c.id),
         }));
         setClients(merged);
+        saveStoredClients(merged);
+      } else {
+        const cachedClients = getStoredClients();
+        if (cachedClients.length > 0) {
+          setClients(cachedClients);
+        }
       }
 
-      // 2. Repartidores activos
+      // 2. Cargar Repartidores
       const { data: driversData } = await supabase
         .from('profiles')
         .select('id, full_name')
@@ -116,17 +140,25 @@ export default function VentasPage() {
         );
       }
 
-      // 3. Pedidos creados en Supabase
+      // 3. Cargar Pedidos
       const { data: ordersData } = await supabase
         .from('orders')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (ordersData) {
+      if (ordersData && ordersData.length > 0) {
         setOrders(ordersData as Order[]);
+        saveStoredOrders(ordersData as Order[]);
+      } else {
+        const cachedOrders = getStoredOrders();
+        if (cachedOrders.length > 0) {
+          setOrders(cachedOrders);
+        }
       }
     } catch (err) {
-      console.warn('Carga inicial de ventas');
+      console.warn('Cargando respaldo local de ventas');
+      const cached = getStoredOrders();
+      if (cached.length > 0) setOrders(cached);
     } finally {
       setIsLoadingOrders(false);
     }
@@ -219,6 +251,25 @@ export default function VentasPage() {
     );
   }, [clients, clientSearchQuery]);
 
+  // Actualizar estado de una orden (por ejemplo 'En Preparacion' al iniciar producción)
+  const handleUpdateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
+    const updatedList = orders.map((o) =>
+      o.id === orderId ? { ...o, status: newStatus } : o
+    );
+    setOrders(updatedList);
+    saveStoredOrders(updatedList);
+
+    try {
+      await supabase
+        .from('orders')
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .eq('id', orderId);
+    } catch (e) {
+      console.warn('Actualización local persistida');
+    }
+  };
+
+  // 1. CREACIÓN DEL PEDIDO (GUARDADO AUTOMÁTICO PERSISTENTE)
   const handleCreateOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentClient) {
@@ -229,45 +280,10 @@ export default function VentasPage() {
     setIsSubmitting(true);
     const orderNumber = `SORA-${Math.floor(1000 + Math.random() * 9000)}`;
     const driverObj = deliveryDrivers.find((d) => d.id === deliveryUserId);
-
-    let createdId = `ord-${Date.now()}`;
-    try {
-      const { data } = await supabase
-        .from('orders')
-        .insert([
-          {
-            order_number: orderNumber,
-            client_id: currentClient.id,
-            client_name: currentClient.name,
-            client_phone: currentClient.phone,
-            address_id: currentAddress?.id || null,
-            address_label: currentAddress?.label || null,
-            address: currentAddress?.address || 'Retiro en local',
-            address_reference: currentAddress?.reference || null,
-            latitude: currentAddress?.latitude || null,
-            longitude: currentAddress?.longitude || null,
-            items: items,
-            total: totalCalculated,
-            payment_method: paymentMethod,
-            payment_status: paymentStatus,
-            delivery_user_id: deliveryUserId || null,
-            delivery_user_name: driverObj?.name || null,
-            status: 'Pendiente',
-            notes: notes || null,
-          },
-        ])
-        .select()
-        .single();
-
-      if (data) {
-        createdId = data.id;
-      }
-    } catch (err) {
-      console.warn('Pedido guardado localmente');
-    }
+    const newOrderId = generateUuid();
 
     const newOrder: Order = {
-      id: createdId,
+      id: newOrderId,
       order_number: orderNumber,
       client_id: currentClient.id,
       client_name: currentClient.name,
@@ -284,16 +300,71 @@ export default function VentasPage() {
       payment_status: paymentStatus,
       delivery_user_id: deliveryUserId || null,
       delivery_user_name: driverObj?.name || 'Por asignar',
-      status: 'pendiente',
+      status: 'Pendiente',
+      delivery_date: deliveryDate,
+      delivery_time: deliveryTime || undefined,
+      production_reminder_time: productionReminderTime,
+      is_scheduled: isScheduled || deliveryDate > todayStr,
       notes: notes,
-      created_at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      created_at: new Date().toISOString(),
     };
 
-    setOrders([newOrder, ...orders]);
-    setIsSubmitting(false);
-    setSuccessNotice(`¡Pedido #${orderNumber} creado exitosamente en DOP!`);
+    // 1. Guardar inmediatamente en almacenamiento local (cero pérdida de datos)
+    const updatedList = [newOrder, ...orders];
+    setOrders(updatedList);
+    saveStoredOrders(updatedList);
 
-    // Resetear formulario
+    // 2. Enviar a Supabase con validación de tipos
+    try {
+      const supabasePayload: any = {
+        id: newOrderId,
+        order_number: orderNumber,
+        client_name: currentClient.name,
+        client_phone: currentClient.phone,
+        address: currentAddress?.address || 'Retiro en local',
+        address_label: currentAddress?.label || null,
+        address_reference: currentAddress?.reference || null,
+        latitude: currentAddress?.latitude || null,
+        longitude: currentAddress?.longitude || null,
+        items: items,
+        total: totalCalculated,
+        payment_method: paymentMethod,
+        payment_status: paymentStatus,
+        status: 'Pendiente',
+        delivery_date: deliveryDate,
+        delivery_time: deliveryTime || null,
+        production_reminder_time: productionReminderTime,
+        is_scheduled: isScheduled || deliveryDate > todayStr,
+        notes: notes || null,
+      };
+
+      if (isValidUuid(currentClient.id)) supabasePayload.client_id = currentClient.id;
+      if (currentAddress && isValidUuid(currentAddress.id)) supabasePayload.address_id = currentAddress.id;
+      if (isValidUuid(deliveryUserId)) {
+        supabasePayload.delivery_user_id = deliveryUserId;
+        supabasePayload.delivery_user_name = driverObj?.name || null;
+      }
+
+      const { error } = await supabase.from('orders').insert([supabasePayload]);
+      if (error) {
+        console.warn('Nota Supabase orders:', error.message);
+      }
+    } catch (err) {
+      console.warn('Orden guardada en caché local persistente');
+    }
+
+    // 3. Campana y vibración auditiva inmediata en cocina
+    triggerKitchenAlert(
+      '¡Nueva Orden en Cocina!',
+      `Pedido #${orderNumber} para ${currentClient.name} (${formatCurrency(totalCalculated)}). Entrega: ${deliveryTime || 'Inmediata'}.`,
+      'new_order',
+      orderNumber
+    );
+
+    setIsSubmitting(false);
+    setSuccessNotice(`¡Pedido #${orderNumber} creado y guardado automáticamente! 🔔 Campana de cocina activada.`);
+
+    // Resetear formulario para el próximo pedido
     setItems([
       {
         id: `item-${Date.now()}`,
@@ -304,10 +375,12 @@ export default function VentasPage() {
       },
     ]);
     setNotes('');
+    setDeliveryTime('');
+    setIsScheduled(false);
 
     setTimeout(() => {
       setSuccessNotice(null);
-    }, 4000);
+    }, 4500);
   };
 
   return (
@@ -329,7 +402,7 @@ export default function VentasPage() {
               Creación y Despacho de Pedidos
             </h1>
             <p className="text-xs sm:text-sm text-text-sora/70">
-              Registra pedidos, asigna repartidores y visualiza totales en pesos dominicanos.
+              Registra pedidos, programa horarios de entrega con recordatorios automáticos de cocina y asigna repartidores.
             </p>
           </div>
 
@@ -352,6 +425,12 @@ export default function VentasPage() {
           </div>
         )}
 
+        {/* SISTEMA DE ALERTAS Y RECORDATORIOS DE PRODUCCIÓN */}
+        <ProductionReminderAlerts
+          orders={orders}
+          onUpdateOrderStatus={handleUpdateOrderStatus}
+        />
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
           {/* COLUMNA IZQUIERDA: FORMULARIO DE NUEVO PEDIDO */}
           <div className="lg:col-span-7 bg-white/85 rounded-3xl p-5 sm:p-6 border border-border-sora shadow-sora">
@@ -365,7 +444,7 @@ export default function VentasPage() {
                     Nuevo Pedido
                   </h2>
                   <p className="text-xs text-text-sora/60">
-                    Completar datos de despacho y platos solicitados
+                    Completar datos de entrega, platos y recordatorio de producción
                   </p>
                 </div>
               </div>
@@ -450,76 +529,201 @@ export default function VentasPage() {
                   >
                     {availableAddresses.map((addr) => (
                       <option key={addr.id} value={addr.id}>
-                        [{addr.label}] {addr.address} {addr.reference ? `(Ref: ${addr.reference})` : ''}
+                        [{addr.label}] {addr.address} {addr.reference ? `(${addr.reference})` : ''}
                       </option>
                     ))}
                   </select>
                 )}
-
-                {currentAddress && (
-                  <div className="p-3 rounded-2xl bg-bg-sora/80 border border-border-sora space-y-1 text-xs">
-                    <div className="flex items-center space-x-1.5 font-medium text-text-sora">
-                      <MapPin className="w-3.5 h-3.5 text-primary-sora flex-shrink-0" />
-                      <span>{currentAddress.address}</span>
-                    </div>
-                    {currentAddress.reference && (
-                      <p className="text-[11px] text-text-sora/60 pl-5">
-                        <strong>Referencia:</strong> {currentAddress.reference}
-                      </p>
-                    )}
-                  </div>
-                )}
               </div>
 
-              {/* 3. PLATOS Y PRECIOS EN DOP */}
-              <div className="space-y-3">
+              {/* 3. HORARIO DE ENTREGA Y RECORDATORIO DE PRODUCCIÓN (REQUERIMIENTO PRINCIPAL) */}
+              <div className="p-4 rounded-2xl bg-bg-sora/60 border border-border-sora space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="block text-xs font-semibold text-text-sora/80 uppercase tracking-wider">
-                    3. Platos y Cantidades (Precios en DOP) *
-                  </label>
+                  <div className="flex items-center space-x-2">
+                    <Clock className="w-4 h-4 text-primary-sora" />
+                    <span className="text-xs font-bold text-text-sora uppercase tracking-wider">
+                      3. Horario y Programación de Entrega
+                    </span>
+                  </div>
+
+                  <span className="text-[10px] font-semibold text-text-sora/60 bg-white px-2 py-0.5 rounded-md border border-border-sora">
+                    Alerta de Cocina
+                  </span>
+                </div>
+
+                {/* Accesos rápidos de programación */}
+                <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
-                    onClick={() => handleAddItem()}
-                    className="inline-flex items-center space-x-1 text-xs font-semibold text-primary-sora hover:text-primary-hover py-1 px-2 rounded-lg hover:bg-primary-sora/10"
+                    onClick={() => {
+                      setIsScheduled(false);
+                      setDeliveryDate(todayStr);
+                      setDeliveryTime('');
+                    }}
+                    className={`py-2 px-1 text-center rounded-xl text-xs font-bold border transition-all ${
+                      !isScheduled && deliveryDate === todayStr && !deliveryTime
+                        ? 'bg-primary-sora text-white border-primary-sora shadow-xs'
+                        : 'bg-white text-text-sora/70 border-border-sora hover:bg-bg-sora'
+                    }`}
                   >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Agregar Ítem</span>
+                    ⚡ Inmediata
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsScheduled(true);
+                      setDeliveryDate(todayStr);
+                      setDeliveryTime('12:30');
+                    }}
+                    className={`py-2 px-1 text-center rounded-xl text-xs font-bold border transition-all ${
+                      isScheduled && deliveryDate === todayStr
+                        ? 'bg-primary-sora text-white border-primary-sora shadow-xs'
+                        : 'bg-white text-text-sora/70 border-border-sora hover:bg-bg-sora'
+                    }`}
+                  >
+                    ⏰ Para Hoy a las...
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsScheduled(true);
+                      // Mañana
+                      const d = new Date();
+                      d.setDate(d.getDate() + 1);
+                      setDeliveryDate(d.toISOString().split('T')[0]);
+                      setDeliveryTime('13:00');
+                    }}
+                    className={`py-2 px-1 text-center rounded-xl text-xs font-bold border transition-all ${
+                      isScheduled && deliveryDate > todayStr
+                        ? 'bg-primary-sora text-white border-primary-sora shadow-xs'
+                        : 'bg-white text-text-sora/70 border-border-sora hover:bg-bg-sora'
+                    }`}
+                  >
+                    📅 Días Futuros
                   </button>
                 </div>
 
-                {/* Carta rápida con precios en DOP */}
-                <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 scrollbar-none">
-                  <span className="text-[10px] text-text-sora/50 uppercase font-semibold whitespace-nowrap">
-                    Carta Rápida:
-                  </span>
-                  {MENU_ITEMS.slice(0, 5).map((dish) => (
+                {/* Campos de fecha y hora */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-text-sora/70 mb-1">
+                      Fecha de Entrega
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="date"
+                        min={todayStr}
+                        value={deliveryDate}
+                        onChange={(e) => {
+                          setDeliveryDate(e.target.value);
+                          if (e.target.value > todayStr) setIsScheduled(true);
+                        }}
+                        className="w-full px-3 py-2 rounded-xl border border-border-sora bg-white text-text-sora text-xs focus:outline-none focus:ring-1 focus:ring-primary-sora font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-text-sora/70 mb-1">
+                      Hora Prometida de Entrega
+                    </label>
+                    <div className="flex items-center space-x-1.5">
+                      <input
+                        type="time"
+                        value={deliveryTime}
+                        onChange={(e) => setDeliveryTime(e.target.value)}
+                        placeholder="Ej: 12:30"
+                        className="w-full px-3 py-2 rounded-xl border border-border-sora bg-white text-text-sora text-xs focus:outline-none focus:ring-1 focus:ring-primary-sora font-medium"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Botones rápidos de horas habituales de comida dominicana */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  <span className="text-[10px] text-text-sora/50 font-medium">Horas comunes:</span>
+                  {['12:00', '12:30', '13:00', '13:30', '14:00', '19:30'].map((th) => (
                     <button
+                      key={th}
                       type="button"
-                      key={dish.name}
-                      onClick={() => handleAddItem(dish.name, dish.price)}
-                      className="px-2.5 py-1.5 rounded-xl bg-bg-sora hover:bg-border-sora/50 border border-border-sora text-[11px] text-text-sora whitespace-nowrap transition-all font-medium"
+                      onClick={() => setDeliveryTime(th)}
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold border transition-all ${
+                        deliveryTime === th
+                          ? 'bg-primary-sora text-white border-primary-sora'
+                          : 'bg-white text-text-sora/70 border-border-sora hover:bg-bg-sora'
+                      }`}
                     >
-                      + {dish.name.split(' ')[0]} {formatCurrency(dish.price)}
+                      {th}
                     </button>
                   ))}
                 </div>
 
-                {/* Filas de Ítems */}
+                {/* Selector de Anticipación para Recordatorio de Producción */}
+                <div className="pt-2 border-t border-border-sora/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div className="flex items-center space-x-1.5 text-xs text-text-sora">
+                    <Flame className="w-3.5 h-3.5 text-amber-600" />
+                    <span className="font-semibold text-[11px]">Recordatorio de Producción:</span>
+                  </div>
+
+                  <select
+                    value={productionReminderTime}
+                    onChange={(e) => setProductionReminderTime(e.target.value)}
+                    className="px-2.5 py-1 rounded-xl border border-border-sora bg-white text-text-sora text-[11px] font-medium focus:outline-none focus:ring-1 focus:ring-primary-sora"
+                  >
+                    <option value="30m">Avisar 30 min antes</option>
+                    <option value="60m">Avisar 1 hora antes (Recomendado)</option>
+                    <option value="120m">Avisar 2 horas antes</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* 4. ITEMS Y PLATOS DEL PEDIDO */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-text-sora/80 uppercase tracking-wider">
+                    4. Platos del Menú *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => handleAddItem()}
+                    className="inline-flex items-center space-x-1 text-xs font-bold text-primary-sora hover:underline"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Agregar Plato</span>
+                  </button>
+                </div>
+
+                {/* Sugerencias Rápidas de Platos de Sora en DOP */}
+                <div className="flex flex-wrap gap-1.5 pb-1">
+                  {MENU_ITEMS.slice(0, 4).map((dish) => (
+                    <button
+                      key={dish.name}
+                      type="button"
+                      onClick={() => handleAddItem(dish.name, dish.price)}
+                      className="text-[11px] px-2.5 py-1 rounded-lg bg-bg-sora hover:bg-border-sora/60 text-text-sora/80 border border-border-sora transition-colors"
+                    >
+                      + {dish.name} ({formatCurrency(dish.price)})
+                    </button>
+                  ))}
+                </div>
+
                 <div className="space-y-2">
                   {items.map((item, index) => (
                     <div
                       key={item.id}
-                      className="grid grid-cols-12 gap-2 items-center p-2.5 rounded-2xl bg-bg-sora/40 border border-border-sora"
+                      className="p-3 rounded-2xl bg-bg-sora/40 border border-border-sora grid grid-cols-12 gap-2 items-center"
                     >
-                      <div className="col-span-6">
+                      <div className="col-span-6 sm:col-span-7">
                         <input
                           type="text"
                           required
-                          list="sora-dishes"
+                          placeholder="Nombre del plato..."
                           value={item.name}
                           onChange={(e) => handleItemChange(index, 'name', e.target.value)}
-                          placeholder="Nombre del plato..."
-                          className="w-full px-2.5 py-2 rounded-xl border border-border-sora bg-white text-xs text-text-sora focus:outline-none focus:ring-1 focus:ring-primary-sora"
+                          list="sora-dishes"
+                          className="w-full px-3 py-2 rounded-xl border border-border-sora bg-white text-xs text-text-sora focus:outline-none focus:ring-1 focus:ring-primary-sora font-medium"
                         />
                       </div>
 
@@ -530,11 +734,11 @@ export default function VentasPage() {
                           required
                           value={item.quantity}
                           onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
-                          className="w-full px-2 py-2 rounded-xl border border-border-sora bg-white text-xs text-text-sora text-center focus:outline-none focus:ring-1 focus:ring-primary-sora font-medium"
+                          className="w-full px-2 py-2 rounded-xl border border-border-sora bg-white text-xs text-text-sora text-center focus:outline-none focus:ring-1 focus:ring-primary-sora font-bold"
                         />
                       </div>
 
-                      <div className="col-span-2">
+                      <div className="col-span-2 sm:col-span-1">
                         <input
                           type="number"
                           min="0"
@@ -570,7 +774,7 @@ export default function VentasPage() {
                 </datalist>
               </div>
 
-              {/* 4. TOTAL CALCULADO AUTOMÁTICAMENTE (DOP) */}
+              {/* 5. TOTAL CALCULADO AUTOMÁTICAMENTE (DOP) */}
               <div className="p-4 rounded-2xl bg-primary-sora/10 border border-primary-sora/25 flex items-center justify-between">
                 <div>
                   <span className="text-xs font-bold text-primary-sora uppercase tracking-wider">
@@ -585,7 +789,7 @@ export default function VentasPage() {
                 </span>
               </div>
 
-              {/* 5. MÉTODO Y ESTADO DE PAGO */}
+              {/* 6. MÉTODO Y ESTADO DE PAGO */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-text-sora/80 mb-2 uppercase tracking-wider">
@@ -652,41 +856,61 @@ export default function VentasPage() {
                 </div>
               </div>
 
-              {/* 6. SELECTOR DE REPARTIDOR */}
-              <div>
-                <label className="block text-xs font-semibold text-text-sora/80 mb-1.5 uppercase tracking-wider">
-                  Asignar Repartidor Activo
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-text-sora/40">
-                    <Truck className="w-4 h-4" />
+              {/* 7. SELECTOR DE REPARTIDOR Y NOTAS */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-text-sora/80 mb-1.5 uppercase tracking-wider">
+                    Asignar Repartidor
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-text-sora/40">
+                      <Truck className="w-4 h-4" />
+                    </div>
+                    <select
+                      value={deliveryUserId}
+                      onChange={(e) => setDeliveryUserId(e.target.value)}
+                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
+                    >
+                      <option value="">-- Sin asignar por ahora --</option>
+                      {deliveryDrivers.map((driver) => (
+                        <option key={driver.id} value={driver.id}>
+                          {driver.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                  <select
-                    value={deliveryUserId}
-                    onChange={(e) => setDeliveryUserId(e.target.value)}
-                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
-                  >
-                    <option value="">-- Sin asignar por ahora --</option>
-                    {deliveryDrivers.map((driver) => (
-                      <option key={driver.id} value={driver.id}>
-                        {driver.name}
-                      </option>
-                    ))}
-                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-text-sora/80 mb-1.5 uppercase tracking-wider">
+                    Notas de Cocina / Observaciones
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: Sin cebolla, extra salsa..."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora"
+                  />
                 </div>
               </div>
 
               <button
                 type="submit"
                 disabled={isSubmitting || !currentClient}
-                className="w-full py-3.5 rounded-2xl bg-primary-sora hover:bg-primary-hover text-white font-semibold text-sm transition-all shadow-md shadow-primary-sora/25 active:scale-98 disabled:opacity-50"
+                className="w-full py-3.5 rounded-2xl bg-primary-sora hover:bg-primary-hover text-white font-semibold text-sm transition-all shadow-md shadow-primary-sora/25 active:scale-98 disabled:opacity-50 flex items-center justify-center space-x-2"
               >
-                {isSubmitting ? 'Guardando pedido...' : 'Crear Pedido en DOP (Estado: Pendiente)'}
+                <Bell className="w-4 h-4 animate-bounce" />
+                <span>
+                  {isSubmitting
+                    ? 'Guardando pedido...'
+                    : 'Guardar Pedido y Activar Timbre de Cocina 🔔'}
+                </span>
               </button>
             </form>
           </div>
 
-          {/* COLUMNA DERECHA: PEDIDOS REGISTRADOS */}
+          {/* COLUMNA DERECHA: HISTORIAL DE PEDIDOS */}
           <div className="lg:col-span-5 space-y-4">
             <div className="bg-white/85 rounded-3xl p-5 sm:p-6 border border-border-sora shadow-sora">
               <div className="flex items-center justify-between pb-4 border-b border-border-sora mb-4">
@@ -695,7 +919,7 @@ export default function VentasPage() {
                     Historial de Pedidos
                   </h3>
                   <p className="text-xs text-text-sora/60">
-                    {orders.length} pedidos registrados
+                    {orders.length} pedidos registrados (Autoguardado activo)
                   </p>
                 </div>
                 <span className="text-xs px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-semibold">
@@ -704,11 +928,13 @@ export default function VentasPage() {
               </div>
 
               {orders.length > 0 ? (
-                <div className="space-y-3.5 max-h-[700px] overflow-y-auto pr-1">
+                <div className="space-y-3.5 max-h-[750px] overflow-y-auto pr-1">
                   {orders.map((order) => {
                     const cleanPhone = cleanPhoneNumber(order.client_phone);
                     const whatsappMsg = encodeURIComponent(
-                      `¡Hola ${order.client_name}! 🍲 Tu pedido #${order.order_number} en Sora Cocina Casera por un total de ${formatCurrency(order.total)} ha sido ingresado exitosamente.`
+                      `¡Hola ${order.client_name}! 🍲 Tu pedido #${order.order_number} en Sora Cocina Casera por un total de ${formatCurrency(order.total)} ha sido registrado exitosamente.${
+                        order.delivery_time ? ` Entrega programada: ${order.delivery_time}.` : ''
+                      }`
                     );
 
                     return (
@@ -725,9 +951,42 @@ export default function VentasPage() {
                               {order.client_name}
                             </span>
                           </div>
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 uppercase">
+                          <span
+                            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border uppercase ${
+                              (order.status || '').toLowerCase() === 'entregado'
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                : (order.status || '').toLowerCase() === 'en preparacion'
+                                ? 'bg-blue-50 text-blue-800 border-blue-200'
+                                : 'bg-amber-50 text-amber-800 border-amber-200'
+                            }`}
+                          >
                             {order.status}
                           </span>
+                        </div>
+
+                        {/* Horario y Fecha Prometida */}
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs text-text-sora/80">
+                          {order.delivery_time ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 font-bold text-[11px]">
+                              <Clock className="w-3 h-3 mr-1" />
+                              Entrega: {order.delivery_time}{' '}
+                              {order.delivery_date && order.delivery_date !== todayStr
+                                ? `(${order.delivery_date.split('-').slice(1).join('/')})`
+                                : '(Hoy)'}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center text-[11px] text-text-sora/60">
+                              <Clock className="w-3 h-3 mr-1" />
+                              Entrega inmediata
+                            </span>
+                          )}
+
+                          {order.delivery_user_name && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-bg-sora text-text-sora/70 border border-border-sora text-[11px]">
+                              <Truck className="w-3 h-3 mr-1" />
+                              {order.delivery_user_name}
+                            </span>
+                          )}
                         </div>
 
                         <div className="text-xs text-text-sora/70 space-y-1">

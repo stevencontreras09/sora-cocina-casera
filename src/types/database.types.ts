@@ -98,6 +98,10 @@ export interface Order {
   delivery_user_id?: string | null;
   delivery_user_name?: string | null;
   status: OrderStatus;
+  delivery_date?: string; // YYYY-MM-DD
+  delivery_time?: string; // HH:mm (ej. '12:30' o '13:45')
+  production_reminder_time?: string; // '30m' | '60m' | '120m' | 'inicio_dia' | HH:mm
+  is_scheduled?: boolean;
   notes?: string;
   created_at: string;
   updated_at?: string;

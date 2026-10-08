@@ -5,6 +5,7 @@ import { AppNavigation } from '@/components/layout/AppNavigation';
 import { useAuth } from '@/context/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import { formatCurrency } from '@/lib/utils';
+import { getStoredOrders, getStoredExpenses } from '@/lib/storage';
 import {
   TrendingUp,
   ShoppingBag,
@@ -73,6 +74,26 @@ export default function DashboardPage() {
             ordersCount: ordersData.length,
             activeDeliveries: activeCount,
           }));
+        } else {
+          // Respaldo de pedidos locales si Supabase está vacío o sin conexión
+          const localOrders = getStoredOrders();
+          if (localOrders && localOrders.length > 0) {
+            setRecentOrders(localOrders.slice(0, 10));
+            const totalSales = localOrders.reduce(
+              (sum, o) => sum + (parseFloat(o.total as any) || 0),
+              0
+            );
+            const activeCount = localOrders.filter((o) => {
+              const st = (o.status || '').toLowerCase();
+              return st === 'en camino' || st === 'pendiente';
+            }).length;
+            setStats((prev) => ({
+              ...prev,
+              dailySales: totalSales,
+              ordersCount: localOrders.length,
+              activeDeliveries: activeCount,
+            }));
+          }
         }
 
         // 2. Consultar gastos del día
@@ -90,9 +111,33 @@ export default function DashboardPage() {
             ...prev,
             todayExpenses: totalExp,
           }));
+        } else {
+          const localExpenses = getStoredExpenses();
+          const todayExpensesList = localExpenses.filter((e) => e.date?.startsWith(todayStr));
+          const totalExp = todayExpensesList.reduce(
+            (sum, e) => sum + (parseFloat(e.amount as any) || 0),
+            0
+          );
+          if (totalExp > 0) {
+            setStats((prev) => ({
+              ...prev,
+              todayExpenses: totalExp,
+            }));
+          }
         }
       } catch (err) {
-        console.warn('Cargando dashboard limpio');
+        console.warn('Cargando dashboard limpio desde almacenamiento');
+        const localOrders = getStoredOrders();
+        const localExpenses = getStoredExpenses();
+        const totalSales = localOrders.reduce((sum, o) => sum + (parseFloat(o.total as any) || 0), 0);
+        const totalExp = localExpenses.reduce((sum, e) => sum + (parseFloat(e.amount as any) || 0), 0);
+        setRecentOrders(localOrders.slice(0, 10));
+        setStats({
+          dailySales: totalSales,
+          ordersCount: localOrders.length,
+          activeDeliveries: localOrders.filter((o) => ['en camino', 'pendiente'].includes((o.status || '').toLowerCase())).length,
+          todayExpenses: totalExp,
+        });
       } finally {
         setIsLoading(false);
       }

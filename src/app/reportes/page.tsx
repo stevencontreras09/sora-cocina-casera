@@ -5,6 +5,7 @@ import { AppNavigation } from '@/components/layout/AppNavigation';
 import { useAuth } from '@/context/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import { formatCurrency } from '@/lib/utils';
+import { getStoredOrders, getStoredExpenses } from '@/lib/storage';
 import {
   BarChart3,
   TrendingUp,
@@ -80,8 +81,11 @@ export default function ReportesPage() {
         .from('orders')
         .select('*');
 
-      if (!ordersError && ordersData) {
+      if (!ordersError && ordersData && ordersData.length > 0) {
         setRawOrders(ordersData);
+      } else {
+        const stored = getStoredOrders();
+        if (stored.length > 0) setRawOrders(stored);
       }
 
       // 2. Gastos
@@ -89,11 +93,18 @@ export default function ReportesPage() {
         .from('expenses')
         .select('*');
 
-      if (!expensesError && expensesData) {
+      if (!expensesError && expensesData && expensesData.length > 0) {
         setRawExpenses(expensesData);
+      } else {
+        const stored = getStoredExpenses();
+        if (stored.length > 0) setRawExpenses(stored);
       }
     } catch (err) {
-      console.warn('Error al consultar reportes en Supabase', err);
+      console.warn('Error al consultar reportes en Supabase, usando respaldo local', err);
+      const storedOrders = getStoredOrders();
+      const storedExpenses = getStoredExpenses();
+      if (storedOrders.length > 0) setRawOrders(storedOrders);
+      if (storedExpenses.length > 0) setRawExpenses(storedExpenses);
     } finally {
       setIsLoading(false);
     }

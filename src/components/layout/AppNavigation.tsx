@@ -6,6 +6,8 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { ROLE_INFO, UserRole, AppPermission } from '@/types/database.types';
 import { SystemUpdateNotice } from './SystemUpdateNotice';
+import { KitchenAlertBanner } from '@/components/alerts/KitchenAlertBanner';
+import { AutoSaveStatusIndicator } from './AutoSaveStatusIndicator';
 import {
   LayoutDashboard,
   Receipt,
@@ -132,6 +134,7 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="flex items-center space-x-2">
+          <AutoSaveStatusIndicator />
           {currentRoleInfo && (
             <span
               className={`hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${currentRoleInfo.badgeColor}`}
@@ -266,16 +269,17 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
                 </p>
               </div>
             </div>
-            {currentRoleInfo && (
-              <div className="mt-2.5">
+            <div className="mt-2.5 flex items-center justify-between gap-1 flex-wrap">
+              {currentRoleInfo && (
                 <span
                   className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${currentRoleInfo.badgeColor}`}
                 >
                   <Shield className="w-3 h-3 mr-1" />
                   {currentRoleInfo.label}
                 </span>
-              </div>
-            )}
+              )}
+              <AutoSaveStatusIndicator />
+            </div>
           </div>
 
           {/* Lista de Navegación Condicional por Rol */}
@@ -319,8 +323,9 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* CONTENIDO PRINCIPAL */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto relative">
         <SystemUpdateNotice />
+        <KitchenAlertBanner />
         <div className="p-4 sm:p-6 md:p-8 max-w-7xl w-full mx-auto">
           {children}
         </div>
