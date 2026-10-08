@@ -107,3 +107,47 @@ export function saveStoredExpenses(expenses: Expense[]) {
     console.warn('Error al guardar gastos localmente:', e);
   }
 }
+
+// ==================== USUARIOS Y PERMISOS (PROFILES) ====================
+const USERS_STORAGE_KEY = 'sora_users_cache_v2';
+
+export function getStoredUsers(): Profile[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(USERS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+export function saveStoredUsers(users: Profile[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+    // También guardar permisos individuales para búsqueda rápida por ID o email
+    users.forEach((u) => {
+      if (u.id && u.permissions) {
+        localStorage.setItem(`sora_perms_${u.id}`, JSON.stringify(u.permissions));
+      }
+      if (u.email && u.permissions) {
+        localStorage.setItem(`sora_perms_${u.email.toLowerCase()}`, JSON.stringify(u.permissions));
+      }
+    });
+    notifyAutoSave('Usuarios y Permisos');
+  } catch (e) {
+    console.warn('Error al guardar usuarios localmente:', e);
+  }
+}
+
+export function getStoredUserPermissions(userIdOrEmail: string): string[] | null {
+  if (typeof window === 'undefined' || !userIdOrEmail) return null;
+  try {
+    const key = `sora_perms_${userIdOrEmail.toLowerCase()}`;
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+

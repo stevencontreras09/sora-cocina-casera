@@ -11,7 +11,13 @@ import {
   APP_PERMISSIONS,
   DEFAULT_ROLE_PERMISSIONS,
 } from '@/types/database.types';
-import { notifyAutoSave } from '@/lib/storage';
+import {
+  notifyAutoSave,
+  getStoredUsers,
+  saveStoredUsers,
+  isValidUuid,
+  generateUuid,
+} from '@/lib/storage';
 import {
   UserCog,
   UserPlus,
@@ -75,9 +81,16 @@ export default function GestionUsuariosPage() {
     setTimeout(() => setFeedback(null), 4000);
   };
 
-  // 1. Cargar usuarios desde Supabase
+  // 1. Cargar usuarios desde almacenamiento local y Supabase con fusión inteligente
   const loadUsers = async () => {
     setIsLoading(true);
+
+    // Cargar inmediatamente desde almacenamiento local para respuesta instantánea
+    const cachedUsers = getStoredUsers();
+    if (cachedUsers.length > 0) {
+      setUsers(cachedUsers);
+    }
+
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -85,15 +98,50 @@ export default function GestionUsuariosPage() {
         .order('created_at', { ascending: true });
 
       if (!error && data && data.length > 0) {
-        setUsers(data as Profile[]);
-      } else if (currentProfile) {
-        setUsers([currentProfile]);
+        // Combinar usuarios de Supabase preservando roles o permisos configurados localmente
+        const freshCached = getStoredUsers();
+        const merged = (data as Profile[]).map((sp) => {
+          const local = freshCached.find(
+            (lp) => lp.id === sp.id || (lp.email && sp.email && lp.email.toLowerCase() === sp.email.toLowerCase())
+          );
+          return {
+            ...sp,
+            permissions:
+              local?.permissions && local.permissions.length > 0
+                ? local.permissions
+                : (sp.permissions && sp.permissions.length > 0
+                  ? sp.permissions
+                  : DEFAULT_ROLE_PERMISSIONS[sp.role] || []),
+            role: local?.role || sp.role,
+            is_active: local?.is_active !== undefined ? local.is_active : sp.is_active,
+          };
+        });
+
+        // Incluir usuarios que solo existen en local
+        const localOnly = freshCached.filter(
+          (lp) => !data.some(
+            (sp) => sp.id === lp.id || (lp.email && sp.email && lp.email.toLowerCase() === sp.email.toLowerCase())
+          )
+        );
+
+        const totalUsers = [...merged, ...localOnly];
+        setUsers(totalUsers);
+        saveStoredUsers(totalUsers);
       } else {
-        setUsers([]);
+        const cachedFallback = getStoredUsers();
+        if (cachedFallback.length > 0) {
+          setUsers(cachedFallback);
+        } else if (currentProfile) {
+          setUsers([currentProfile]);
+          saveStoredUsers([currentProfile]);
+        }
       }
     } catch (err) {
-      console.warn('Conexión con perfiles de Sora', err);
-      if (currentProfile) {
+      console.warn('Conexión con perfiles de Sora, usando respaldo', err);
+      const cached = getStoredUsers();
+      if (cached.length > 0) {
+        setUsers(cached);
+      } else if (currentProfile) {
         setUsers([currentProfile]);
       }
     } finally {
@@ -155,44 +203,47 @@ export default function GestionUsuariosPage() {
     }
 
     setIsSavingEdit(true);
+
+    // 1. Persistir inmediatamente en memoria y en localStorage
+    const updatedUsers = users.map((u) =>
+      u.id === editingUser.id
+        ? {
+            ...u,
+            role: editRole,
+            is_active: editIsActive,
+            permissions: editPermissions,
+          }
+        : u
+    );
+    setUsers(updatedUsers);
+    saveStoredUsers(updatedUsers);
+
+    // 2. Intentar actualizar en Supabase si es un UUID válido
     try {
-      // Intentar actualizar con el campo permissions
-      const updateData: any = {
-        role: editRole,
-        is_active: editIsActive,
-        permissions: editPermissions,
-        updated_at: new Date().toISOString(),
-      };
+      if (isValidUuid(editingUser.id)) {
+        const updateData: any = {
+          role: editRole,
+          is_active: editIsActive,
+          permissions: editPermissions,
+          updated_at: new Date().toISOString(),
+        };
 
-      const { error } = await supabase
-        .from('profiles')
-        .update(updateData)
-        .eq('id', editingUser.id);
-
-      if (error && error.message.includes('permissions')) {
-        // Si la columna permissions aún no se ha creado en la tabla SQL, guardar sin ella
-        delete updateData.permissions;
-        await supabase
+        const { error } = await supabase
           .from('profiles')
           .update(updateData)
           .eq('id', editingUser.id);
+
+        if (error && error.message.includes('permissions')) {
+          delete updateData.permissions;
+          await supabase
+            .from('profiles')
+            .update(updateData)
+            .eq('id', editingUser.id);
+        }
       }
     } catch (err) {
-      console.warn('Actualización local de perfil', err);
+      console.warn('Actualización local de perfil persistida');
     }
-
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === editingUser.id
-          ? {
-              ...u,
-              role: editRole,
-              is_active: editIsActive,
-              permissions: editPermissions,
-            }
-          : u
-      )
-    );
 
     setIsSavingEdit(false);
     setEditingUser(null);
@@ -225,7 +276,9 @@ export default function GestionUsuariosPage() {
       console.warn('Error al eliminar usuario en BD', err);
     }
 
-    setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id));
+    const updatedUsers = users.filter((u) => u.id !== userToDelete.id);
+    setUsers(updatedUsers);
+    saveStoredUsers(updatedUsers);
     setIsDeletingUser(false);
     notifyAutoSave('Usuarios');
     showFeedback(`Usuario ${userToDelete.full_name || userToDelete.email} eliminado del sistema.`);
@@ -241,7 +294,7 @@ export default function GestionUsuariosPage() {
     }
 
     setIsSubmittingInvite(true);
-    const newUserId = `usr-${Date.now().toString().slice(-4)}`;
+    const newUserId = generateUuid();
     const newProfile: Profile = {
       id: newUserId,
       email: inviteEmail.trim(),
@@ -270,29 +323,33 @@ export default function GestionUsuariosPage() {
         newProfile.id = data.user.id;
       }
 
-      // Asegurar registro en la tabla profiles
-      const profileData: any = {
-        id: newProfile.id,
-        email: newProfile.email,
-        full_name: newProfile.full_name,
-        role: inviteRole,
-        is_active: true,
-        permissions: invitePermissions,
-      };
+      // Asegurar registro en la tabla profiles si es UUID
+      if (isValidUuid(newProfile.id)) {
+        const profileData: any = {
+          id: newProfile.id,
+          email: newProfile.email,
+          full_name: newProfile.full_name,
+          role: inviteRole,
+          is_active: true,
+          permissions: invitePermissions,
+        };
 
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .upsert([profileData]);
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert([profileData]);
 
-      if (profileError && profileError.message.includes('permissions')) {
-        delete profileData.permissions;
-        await supabase.from('profiles').upsert([profileData]);
+        if (profileError && profileError.message.includes('permissions')) {
+          delete profileData.permissions;
+          await supabase.from('profiles').upsert([profileData]);
+        }
       }
     } catch (err) {
       console.warn('Usuario registrado en estado local');
     }
 
-    setUsers((prev) => [...prev, newProfile]);
+    const updatedUsersList = [...users, newProfile];
+    setUsers(updatedUsersList);
+    saveStoredUsers(updatedUsersList);
     setIsSubmittingInvite(false);
     setIsInviteOpen(false);
     setInviteName('');

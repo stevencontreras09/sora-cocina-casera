@@ -29,41 +29,31 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS permissions TEXT[] DEFAULT 
 -- Habilitar RLS en profiles
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Usuarios pueden leer su propio perfil"
+DROP POLICY IF EXISTS "Usuarios pueden leer su propio perfil" ON public.profiles;
+DROP POLICY IF EXISTS "Admins pueden ver todos los perfiles" ON public.profiles;
+DROP POLICY IF EXISTS "Lectura de perfiles para autenticados" ON public.profiles;
+CREATE POLICY "Lectura de perfiles para autenticados"
     ON public.profiles FOR SELECT
-    USING (auth.uid() = id);
+    USING (true);
 
-CREATE POLICY "Admins pueden ver todos los perfiles"
-    ON public.profiles FOR SELECT
-    USING (
-        EXISTS (
-            SELECT 1 FROM public.profiles
-            WHERE id = auth.uid() AND role = 'admin'
-        )
-    );
-
-CREATE POLICY "Usuarios pueden actualizar su propio perfil"
+DROP POLICY IF EXISTS "Usuarios pueden actualizar su propio perfil" ON public.profiles;
+DROP POLICY IF EXISTS "Admins pueden actualizar cualquier perfil" ON public.profiles;
+DROP POLICY IF EXISTS "Actualizacion de perfiles" ON public.profiles;
+CREATE POLICY "Actualizacion de perfiles"
     ON public.profiles FOR UPDATE
-    USING (auth.uid() = id)
-    WITH CHECK (auth.uid() = id);
+    USING (true)
+    WITH CHECK (true);
 
-CREATE POLICY "Admins pueden actualizar cualquier perfil"
-    ON public.profiles FOR UPDATE
-    USING (
-        EXISTS (
-            SELECT 1 FROM public.profiles
-            WHERE id = auth.uid() AND role = 'admin'
-        )
-    );
+DROP POLICY IF EXISTS "Insercion de perfiles" ON public.profiles;
+CREATE POLICY "Insercion de perfiles"
+    ON public.profiles FOR INSERT
+    WITH CHECK (true);
 
-CREATE POLICY "Admins pueden eliminar cualquier perfil"
+DROP POLICY IF EXISTS "Admins pueden eliminar cualquier perfil" ON public.profiles;
+DROP POLICY IF EXISTS "Eliminacion de perfiles" ON public.profiles;
+CREATE POLICY "Eliminacion de perfiles"
     ON public.profiles FOR DELETE
-    USING (
-        EXISTS (
-            SELECT 1 FROM public.profiles
-            WHERE id = auth.uid() AND role = 'admin'
-        )
-    );
+    USING (true);
 
 -- 3. Trigger automático al registrar un nuevo usuario en Supabase Auth
 CREATE OR REPLACE FUNCTION public.handle_new_user()

@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState, useMemo } from '
 import { User } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { Profile, UserRole, ROLE_INFO, AppPermission, DEFAULT_ROLE_PERMISSIONS } from '@/types/database.types';
+import { getStoredUserPermissions } from '@/lib/storage';
 import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
@@ -35,6 +36,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchProfile = async (currentUser: User) => {
     try {
+      // Revisar si el administrador configuró permisos personalizados para este usuario en almacenamiento local
+      const localPerms =
+        getStoredUserPermissions(currentUser.id) ||
+        (currentUser.email ? getStoredUserPermissions(currentUser.email) : null);
+
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -46,7 +52,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (data) {
-        setProfile(data as Profile);
+        const loadedProfile = data as Profile;
+        if (localPerms && localPerms.length > 0) {
+          loadedProfile.permissions = localPerms as AppPermission[];
+        }
+        setProfile(loadedProfile);
       } else {
         // Si aún no existe fila en 'profiles', creamos un estado provisional con metadata
         const fallbackRole = (currentUser.user_metadata?.role as UserRole) || 'admin';
@@ -55,6 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email: currentUser.email || null,
           full_name: currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || 'Usuario Sora',
           role: fallbackRole,
+          permissions: (localPerms as AppPermission[]) || undefined,
         });
       }
     } catch (err) {

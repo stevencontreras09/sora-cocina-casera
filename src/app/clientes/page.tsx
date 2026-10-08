@@ -54,36 +54,65 @@ export default function ClientesPage() {
   const [activeClientForAddress, setActiveClientForAddress] = useState<Client | null>(null);
   const [editingAddress, setEditingAddress] = useState<ClientAddress | null>(null);
 
-  // Cargar clientes desde Supabase con respaldo local
+  // Cargar clientes con combinación inteligente que PRESERVA todas las direcciones locales
   const fetchClients = async () => {
     try {
       setIsLoading(true);
+
+      // Carga inmediata de respaldo para que la UI nunca esté vacía
+      const localCached = getStoredClients();
+      if (localCached.length > 0) {
+        setClients(localCached);
+      }
+
       const { data: clientsData, error: clientsError } = await supabase
         .from('clients')
         .select('*')
         .order('name');
 
-      if (!clientsError && clientsData && clientsData.length > 0) {
+      if (!clientsError && clientsData) {
         const { data: addressesData } = await supabase
           .from('client_addresses')
           .select('*')
           .order('created_at');
 
-        const combined = clientsData.map((client) => ({
-          ...client,
-          addresses: (addressesData || []).filter(
+        const freshCached = getStoredClients();
+
+        // 1. Mapear clientes de Supabase fusionando direcciones para no perder las guardadas localmente
+        const combined = clientsData.map((client) => {
+          const supabaseAddresses = (addressesData || []).filter(
             (addr) => addr.client_id === client.id
-          ),
-        }));
-        setClients(combined);
-        saveStoredClients(combined);
+          );
+          // Buscar si en caché local hay direcciones para este cliente que falten en Supabase
+          const localClient = freshCached.find(
+            (c) => c.id === client.id || c.name.toLowerCase() === client.name.toLowerCase()
+          );
+          const localAddresses = (localClient?.addresses || []).filter(
+            (la) => !supabaseAddresses.some((sa) => sa.id === la.id || sa.address === la.address)
+          );
+
+          return {
+            ...client,
+            addresses: [...supabaseAddresses, ...localAddresses],
+          };
+        });
+
+        // 2. Preservar clientes que se crearon localmente y aún no están en Supabase
+        const localOnlyClients = freshCached.filter(
+          (lc) => !clientsData.some((sc) => sc.id === lc.id || sc.name.toLowerCase() === lc.name.toLowerCase())
+        );
+
+        const mergedAll = [...combined, ...localOnlyClients];
+        setClients(mergedAll);
+        saveStoredClients(mergedAll);
       } else {
-        const cached = getStoredClients();
-        if (cached.length > 0) {
-          setClients(cached);
+        const cachedFallback = getStoredClients();
+        if (cachedFallback.length > 0) {
+          setClients(cachedFallback);
         }
       }
     } catch (err) {
+      console.warn('Cargando directorio desde respaldo seguro', err);
       const cached = getStoredClients();
       if (cached.length > 0) setClients(cached);
     } finally {
@@ -251,6 +280,18 @@ export default function ClientesPage() {
       saveStoredClients(updatedClients);
 
       try {
+        // Asegurar que el cliente exista en Supabase primero para evitar error de clave foránea
+        if (isValidUuid(activeClientForAddress.id)) {
+          await supabase.from('clients').upsert([
+            {
+              id: activeClientForAddress.id,
+              name: activeClientForAddress.name,
+              phone: activeClientForAddress.phone,
+              notes: activeClientForAddress.notes || null,
+            },
+          ]);
+        }
+
         const payload: any = {
           id: newAddrId,
           label: addressData.label,
@@ -263,12 +304,15 @@ export default function ClientesPage() {
         if (isValidUuid(activeClientForAddress.id)) {
           payload.client_id = activeClientForAddress.id;
         }
-        await supabase.from('client_addresses').insert([payload]);
+        const { error: insertErr } = await supabase.from('client_addresses').insert([payload]);
+        if (insertErr) {
+          console.warn('Nota Supabase client_addresses:', insertErr.message);
+        }
       } catch (err) {
-        console.warn('Dirección guardada en respaldo local');
+        console.warn('Dirección guardada en respaldo local persistente');
       }
 
-      showFeedback('Nueva dirección geolocalizada añadida y guardada');
+      showFeedback(`Nueva dirección guardada exitosamente para ${activeClientForAddress.name}`);
     }
   };
 
