@@ -54,19 +54,30 @@ CREATE POLICY "Admins pueden actualizar cualquier perfil"
 
 -- 3. Trigger automático al registrar un nuevo usuario en Supabase Auth
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER SET search_path = public
+AS $$
 BEGIN
-    INSERT INTO public.profiles (id, email, full_name, role)
+    INSERT INTO public.profiles (id, email, full_name, role, is_active)
     VALUES (
         NEW.id,
         NEW.email,
         COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
-        COALESCE((NEW.raw_user_meta_data->>'role')::user_role, 'delivery'::user_role)
+        CASE 
+            WHEN (NEW.raw_user_meta_data->>'role') IN ('admin', 'coadmin', 'delivery') 
+            THEN (NEW.raw_user_meta_data->>'role')::public.user_role 
+            ELSE 'delivery'::public.user_role 
+        END,
+        TRUE
     )
     ON CONFLICT (id) DO NOTHING;
     RETURN NEW;
+EXCEPTION
+    WHEN OTHERS THEN
+        RETURN NEW; -- Evita bloquear la creación del usuario en Auth si ocurre algún error
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
