@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { ROLE_INFO, UserRole } from '@/types/database.types';
+import { ROLE_INFO, UserRole, AppPermission } from '@/types/database.types';
+import { SystemUpdateNotice } from './SystemUpdateNotice';
 import {
   LayoutDashboard,
   Receipt,
@@ -26,6 +27,7 @@ interface NavItem {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   allowedRoles: UserRole[];
+  permissionKey: AppPermission;
   description: string;
 }
 
@@ -35,6 +37,7 @@ const NAVIGATION_ITEMS: NavItem[] = [
     href: '/dashboard',
     icon: LayoutDashboard,
     allowedRoles: ['admin'],
+    permissionKey: 'dashboard',
     description: 'Resumen gerencial y estadísticas',
   },
   {
@@ -42,6 +45,7 @@ const NAVIGATION_ITEMS: NavItem[] = [
     href: '/ventas',
     icon: ShoppingBag,
     allowedRoles: ['admin'],
+    permissionKey: 'ventas',
     description: 'Creación y despacho de pedidos',
   },
   {
@@ -49,6 +53,7 @@ const NAVIGATION_ITEMS: NavItem[] = [
     href: '/clientes',
     icon: Users,
     allowedRoles: ['admin'],
+    permissionKey: 'clientes',
     description: 'Directorio y geolocalización',
   },
   {
@@ -56,6 +61,7 @@ const NAVIGATION_ITEMS: NavItem[] = [
     href: '/gastos',
     icon: Receipt,
     allowedRoles: ['admin', 'coadmin'],
+    permissionKey: 'gastos',
     description: 'Control de egresos e insumos',
   },
   {
@@ -63,6 +69,7 @@ const NAVIGATION_ITEMS: NavItem[] = [
     href: '/delivery',
     icon: Truck,
     allowedRoles: ['admin', 'coadmin', 'delivery'],
+    permissionKey: 'delivery',
     description: 'Despacho y rutas de entrega',
   },
   {
@@ -70,6 +77,7 @@ const NAVIGATION_ITEMS: NavItem[] = [
     href: '/reportes',
     icon: BarChart3,
     allowedRoles: ['admin'],
+    permissionKey: 'reportes',
     description: 'Métricas financieras y utilidad',
   },
   {
@@ -77,19 +85,20 @@ const NAVIGATION_ITEMS: NavItem[] = [
     href: '/admin/usuarios',
     icon: UserCog,
     allowedRoles: ['admin'],
+    permissionKey: 'usuarios',
     description: 'Control de accesos y roles',
   },
 ];
 
 export function AppNavigation({ children }: { children: React.ReactNode }) {
-  const { user, profile, role, signOut, isLoading } = useAuth();
+  const { user, profile, role, signOut, isLoading, hasPermission } = useAuth();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
 
-  // Filtrar elementos de navegación basados en el rol del usuario conectado
+  // Filtrar elementos de navegación basados en los permisos asignados al usuario
   const visibleItems = NAVIGATION_ITEMS.filter((item) =>
-    role ? item.allowedRoles.includes(role) : false
+    hasPermission(item.permissionKey)
   );
 
   const currentRoleInfo = role ? ROLE_INFO[role] : null;
@@ -311,6 +320,7 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
 
       {/* CONTENIDO PRINCIPAL */}
       <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+        <SystemUpdateNotice />
         <div className="p-4 sm:p-6 md:p-8 max-w-7xl w-full mx-auto">
           {children}
         </div>

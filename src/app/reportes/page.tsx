@@ -57,7 +57,7 @@ interface MonthlyData {
 }
 
 export default function ReportesPage() {
-  const { role } = useAuth();
+  const { role, hasPermission } = useAuth();
   const supabase = useMemo(() => createClient(), []);
 
   const now = new Date();
@@ -222,8 +222,8 @@ export default function ReportesPage() {
     return maxVal;
   }, [chartPeriods]);
 
-  // Verificación estricta de seguridad: Co-Admin no debe tener acceso
-  if (role && role !== 'admin') {
+  // Verificación de seguridad: Acceso según permisos de función
+  if (role && !hasPermission('reportes')) {
     return (
       <AppNavigation>
         <div className="min-h-[60vh] flex flex-col items-center justify-center text-center p-6">
@@ -234,7 +234,7 @@ export default function ReportesPage() {
             Acceso Restringido
           </h2>
           <p className="text-sm text-text-sora/60 mt-1 max-w-md">
-            El módulo de Reportes Financieros es exclusivo para usuarios con rol de Administrador.
+            No tienes permisos asignados para visualizar el módulo de Reportes Financieros. Contacta al Administrador del sistema para solicitar acceso.
           </p>
         </div>
       </AppNavigation>

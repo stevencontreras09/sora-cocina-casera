@@ -1,5 +1,21 @@
 export type UserRole = 'admin' | 'coadmin' | 'delivery';
 
+export type AppPermission =
+  | 'dashboard'
+  | 'ventas'
+  | 'clientes'
+  | 'gastos'
+  | 'delivery'
+  | 'reportes'
+  | 'usuarios';
+
+export interface PermissionDefinition {
+  id: AppPermission;
+  label: string;
+  description: string;
+  route: string;
+}
+
 export interface Profile {
   id: string;
   email: string | null;
@@ -7,6 +23,7 @@ export interface Profile {
   role: UserRole;
   phone?: string | null;
   is_active?: boolean;
+  permissions?: AppPermission[];
   created_at?: string;
   updated_at?: string;
 }
@@ -150,3 +167,55 @@ export const ROLE_INFO: Record<
     badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300', // Verde
   },
 };
+
+export const APP_PERMISSIONS: PermissionDefinition[] = [
+  {
+    id: 'dashboard',
+    label: 'Dashboard Gerencial',
+    description: 'Resumen de ventas del día, métricas y pedidos activos',
+    route: '/dashboard',
+  },
+  {
+    id: 'ventas',
+    label: 'Toma de Pedidos (Ventas)',
+    description: 'Creación de órdenes, catálogo de platos y despacho',
+    route: '/ventas',
+  },
+  {
+    id: 'clientes',
+    label: 'Directorio de Clientes',
+    description: 'Gestión de clientes, direcciones, mapa GPS y WhatsApp',
+    route: '/clientes',
+  },
+  {
+    id: 'gastos',
+    label: 'Control de Gastos',
+    description: 'Registro de egresos por categoría e insumos',
+    route: '/gastos',
+  },
+  {
+    id: 'delivery',
+    label: 'Módulo Delivery',
+    description: 'Vista móvil de entregas, navegación en Waze y Google Maps',
+    route: '/delivery',
+  },
+  {
+    id: 'reportes',
+    label: 'Reportes Financieros',
+    description: 'Balances de utilidad neta, comparativas y ticket promedio',
+    route: '/reportes',
+  },
+  {
+    id: 'usuarios',
+    label: 'Gestión de Usuarios',
+    description: 'Crear, editar roles, asignar accesos y eliminar cuentas',
+    route: '/admin/usuarios',
+  },
+];
+
+export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, AppPermission[]> = {
+  admin: ['dashboard', 'ventas', 'clientes', 'gastos', 'delivery', 'reportes', 'usuarios'],
+  coadmin: ['gastos', 'delivery', 'ventas'],
+  delivery: ['delivery'],
+};
+

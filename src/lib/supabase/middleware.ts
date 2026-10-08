@@ -38,12 +38,13 @@ export async function updateSession(request: NextRequest) {
 
   let role: UserRole | null = null;
   let isActive: boolean = true;
+  let permissions: string[] | null = null;
 
   if (user) {
-    // Consultar el rol y estado activo en la tabla 'profiles'
+    // Consultar el rol, estado activo y permisos en la tabla 'profiles'
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role, is_active')
+      .select('role, is_active, permissions')
       .eq('id', user.id)
       .maybeSingle();
 
@@ -52,11 +53,14 @@ export async function updateSession(request: NextRequest) {
       if (profile.is_active === false) {
         isActive = false;
       }
+      if (Array.isArray(profile.permissions)) {
+        permissions = profile.permissions;
+      }
     } else if (user.user_metadata?.role) {
       // Fallback a metadata en caso de que el trigger aún no haya creado el perfil
       role = user.user_metadata.role as UserRole;
     }
   }
 
-  return { supabaseResponse, user, role, isActive };
+  return { supabaseResponse, user, role, isActive, permissions };
 }

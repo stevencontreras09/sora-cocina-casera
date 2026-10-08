@@ -15,8 +15,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Refrescar sesión de Supabase y obtener rol y estado activo
-  const { supabaseResponse, user, role, isActive } = await updateSession(request);
+  // Refrescar sesión de Supabase y obtener rol, estado activo y permisos
+  const { supabaseResponse, user, role, isActive, permissions } = await updateSession(request);
 
   const isLoginPage = pathname === '/login';
 
@@ -31,7 +31,6 @@ export async function middleware(request: NextRequest) {
   if (!user) {
     if (!isLoginPage) {
       const loginUrl = new URL('/login', request.url);
-      // Redirigir a login conservando la URL de destino si se desea
       if (pathname !== '/') {
         loginUrl.searchParams.set('redirect', pathname);
       }
@@ -44,23 +43,52 @@ export async function middleware(request: NextRequest) {
   const effectiveRole: UserRole = role || 'admin';
   const roleConfig = ROLE_INFO[effectiveRole] || ROLE_INFO.admin;
 
-  // 3. Si el usuario autenticado entra a /login o a la raíz /, redirigir según su rol
+  // Mapa de funciones a rutas
+  const PERMISSION_ROUTES: Record<string, string> = {
+    dashboard: '/dashboard',
+    ventas: '/ventas',
+    clientes: '/clientes',
+    gastos: '/gastos',
+    delivery: '/delivery',
+    reportes: '/reportes',
+    usuarios: '/admin',
+  };
+
+  // Construir rutas permitidas totales (por rol + por permisos granulares)
+  const allowedRoutePrefixes = new Set<string>(roleConfig.allowedRoutes);
+  if (effectiveRole === 'admin') {
+    Object.values(PERMISSION_ROUTES).forEach((r) => allowedRoutePrefixes.add(r));
+  } else if (permissions && Array.isArray(permissions)) {
+    permissions.forEach((perm) => {
+      if (PERMISSION_ROUTES[perm]) {
+        allowedRoutePrefixes.add(PERMISSION_ROUTES[perm]);
+      }
+    });
+  }
+
+  // Determinar ruta de aterrizaje óptima
+  let defaultDestination = roleConfig.defaultRoute;
+  if (!allowedRoutePrefixes.has(defaultDestination)) {
+    const firstAllowed = Array.from(allowedRoutePrefixes)[0];
+    if (firstAllowed) defaultDestination = firstAllowed;
+  }
+
+  // 3. Si el usuario autenticado entra a /login o a la raíz /, redirigir según permisos
   if (isLoginPage || pathname === '/') {
-    const redirectUrl = new URL(roleConfig.defaultRoute, request.url);
+    const redirectUrl = new URL(defaultDestination, request.url);
     return NextResponse.redirect(redirectUrl);
   }
 
-  // 4. Protección por rol de rutas privadas
-  // Admin tiene acceso a todo: /dashboard, /gastos, /delivery
-  // Coadmin tiene acceso a: /gastos, /delivery
-  // Delivery tiene acceso exclusivo a: /delivery
-  const isAllowed = roleConfig.allowedRoutes.some((allowed) =>
-    pathname.startsWith(allowed)
-  );
+  // 4. Protección de rutas privadas
+  const isAllowed =
+    effectiveRole === 'admin' ||
+    Array.from(allowedRoutePrefixes).some((allowed) =>
+      pathname.startsWith(allowed)
+    );
 
   if (!isAllowed) {
-    // Si intenta acceder a una ruta no permitida para su rol, redirigir a su ruta por defecto
-    const redirectUrl = new URL(roleConfig.defaultRoute, request.url);
+    // Si intenta acceder a una ruta no permitida para sus funciones, redirigir a su ruta permitida
+    const redirectUrl = new URL(defaultDestination, request.url);
     return NextResponse.redirect(redirectUrl);
   }
 

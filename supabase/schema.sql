@@ -18,9 +18,13 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     role user_role DEFAULT 'delivery' NOT NULL,
     phone TEXT,
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
+    permissions TEXT[] DEFAULT '{}',
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
+
+-- Migración segura para bases de datos existentes:
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS permissions TEXT[] DEFAULT '{}';
 
 -- Habilitar RLS en profiles
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -45,6 +49,15 @@ CREATE POLICY "Usuarios pueden actualizar su propio perfil"
 
 CREATE POLICY "Admins pueden actualizar cualquier perfil"
     ON public.profiles FOR UPDATE
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE id = auth.uid() AND role = 'admin'
+        )
+    );
+
+CREATE POLICY "Admins pueden eliminar cualquier perfil"
+    ON public.profiles FOR DELETE
     USING (
         EXISTS (
             SELECT 1 FROM public.profiles

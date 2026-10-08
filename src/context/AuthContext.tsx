@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { User } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
-import { Profile, UserRole, ROLE_INFO } from '@/types/database.types';
+import { Profile, UserRole, ROLE_INFO, AppPermission, DEFAULT_ROLE_PERMISSIONS } from '@/types/database.types';
 import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
@@ -13,6 +13,7 @@ interface AuthContextType {
   isLoading: boolean;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  hasPermission: (permission: AppPermission) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -22,6 +23,7 @@ const AuthContext = createContext<AuthContextType>({
   isLoading: true,
   signOut: async () => {},
   refreshProfile: async () => {},
+  hasPermission: () => false,
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -132,6 +134,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const role = profile?.role || null;
 
+  const hasPermission = (permission: AppPermission): boolean => {
+    if (!profile) return false;
+    // Administrador siempre tiene acceso total a todas las funciones
+    if (profile.role === 'admin') return true;
+    // Si tiene un listado de permisos granulares configurados
+    if (profile.permissions && Array.isArray(profile.permissions) && profile.permissions.length > 0) {
+      return profile.permissions.includes(permission);
+    }
+    // Fallback a los accesos predeterminados del rol
+    const defaults = DEFAULT_ROLE_PERMISSIONS[profile.role] || [];
+    return defaults.includes(permission);
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -141,6 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         signOut,
         refreshProfile,
+        hasPermission,
       }}
     >
       {children}
