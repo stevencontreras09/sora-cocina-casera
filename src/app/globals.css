@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-sora: #FBF6F0;
+    --primary-sora: #C2665B;
+    --primary-hover: #A85248;
+    --text-sora: #1E1815;
+    --border-sora: #EADCCF;
+  }
+
+  body {
+    background-color: #FBF6F0;
+    color: #1E1815;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Barra de desplazamiento suave y artesanal */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #FBF6F0;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #EADCCF;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #C2665B;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
