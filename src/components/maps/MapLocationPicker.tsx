@@ -21,8 +21,8 @@ const LIBRARIES: ('places')[] = ['places'];
 
 // Ubicación inicial por defecto (Santo Domingo, República Dominicana - Sora Cocina Casera)
 const DEFAULT_CENTER = {
-  lat: 18.4861,
-  lng: -69.9312,
+  lat: 18.4406576,
+  lng: -69.9572904,
 };
 
 const mapContainerStyle = {

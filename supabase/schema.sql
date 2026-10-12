@@ -243,3 +243,41 @@ CREATE INDEX IF NOT EXISTS idx_orders_delivery_date ON public.orders(delivery_da
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON public.orders(created_at);
 CREATE INDEX IF NOT EXISTS idx_expenses_date ON public.expenses(date);
 CREATE INDEX IF NOT EXISTS idx_expenses_category ON public.expenses(category);
+
+-- ==============================================================================
+-- 7. TABLA 'store_settings' (Configuración del Local y Cocina Central Sora)
+-- ==============================================================================
+
+CREATE TABLE IF NOT EXISTS public.store_settings (
+    key TEXT PRIMARY KEY,
+    value JSONB NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+ALTER TABLE public.store_settings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Lectura de configuracion de tienda" ON public.store_settings;
+CREATE POLICY "Lectura de configuracion de tienda"
+    ON public.store_settings FOR SELECT
+    USING (true);
+
+DROP POLICY IF EXISTS "Escritura de configuracion de tienda" ON public.store_settings;
+CREATE POLICY "Escritura de configuracion de tienda"
+    ON public.store_settings FOR ALL
+    USING (true)
+    WITH CHECK (true);
+
+-- Ubicación Oficial de Sora Cocina Casera (Santo Domingo)
+INSERT INTO public.store_settings (key, value)
+VALUES (
+    'location',
+    jsonb_build_object(
+        'name', 'Sora Cocina Casera',
+        'latitude', 18.4406576,
+        'longitude', -69.9572904,
+        'address', 'Santo Domingo, Distrito Nacional, República Dominicana',
+        'google_maps_url', 'https://www.google.com/maps/place/Casa/@18.4404123,-69.9575135,20.25z/data=!4m6!3m5!1s0x8ea561007304889f:0xb9713c73066b51b9!8m2!3d18.4406576!4d-69.9572904!16s%2Fg%2F11ldxtwy9s'
+    )
+)
+ON CONFLICT (key) DO UPDATE
+SET value = EXCLUDED.value, updated_at = NOW();

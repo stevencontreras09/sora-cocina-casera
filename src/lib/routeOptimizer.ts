@@ -1,11 +1,13 @@
 import { Order } from '@/types/database.types';
 
-// Ubicación de la Cocina Central de Sora (Santo Domingo, República Dominicana)
+// Ubicación oficial de la Cocina Central de Sora (Santo Domingo, República Dominicana)
 export const SORA_KITCHEN_COORDS = {
-  lat: 18.4861,
-  lng: -69.9312,
-  name: 'Cocina Central Sora',
-  address: 'Santo Domingo, Distrito Nacional',
+  lat: 18.4406576,
+  lng: -69.9572904,
+  name: 'Sora Cocina Casera',
+  address: 'Santo Domingo, Distrito Nacional, República Dominicana',
+  googleMapsUrl:
+    'https://www.google.com/maps/place/Casa/@18.4404123,-69.9575135,20.25z/data=!4m6!3m5!1s0x8ea561007304889f:0xb9713c73066b51b9!8m2!3d18.4406576!4d-69.9572904!16s%2Fg%2F11ldxtwy9s',
 };
 
 export interface RouteStop {

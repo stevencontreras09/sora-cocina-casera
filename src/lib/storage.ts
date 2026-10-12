@@ -298,3 +298,43 @@ export function getStoredUserPermissions(userIdOrEmail: string): string[] | null
   }
 }
 
+// ==================== CONFIGURACIÓN DE LA TIENDA / LOCAL ====================
+export interface StoreLocation {
+  name: string;
+  latitude: number;
+  longitude: number;
+  address: string;
+  googleMapsUrl?: string;
+}
+
+export const OFFICIAL_SORA_LOCATION: StoreLocation = {
+  name: 'Sora Cocina Casera',
+  latitude: 18.4406576,
+  longitude: -69.9572904,
+  address: 'Santo Domingo, Distrito Nacional, República Dominicana',
+  googleMapsUrl:
+    'https://www.google.com/maps/place/Casa/@18.4404123,-69.9575135,20.25z/data=!4m6!3m5!1s0x8ea561007304889f:0xb9713c73066b51b9!8m2!3d18.4406576!4d-69.9572904!16s%2Fg%2F11ldxtwy9s',
+};
+
+const STORE_LOCATION_KEY = 'sora_store_location_v2';
+
+export function getStoredStoreLocation(): StoreLocation {
+  if (typeof window === 'undefined') return OFFICIAL_SORA_LOCATION;
+  try {
+    const raw = localStorage.getItem(STORE_LOCATION_KEY);
+    return raw ? JSON.parse(raw) : OFFICIAL_SORA_LOCATION;
+  } catch (e) {
+    return OFFICIAL_SORA_LOCATION;
+  }
+}
+
+export function saveStoredStoreLocation(location: StoreLocation) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORE_LOCATION_KEY, JSON.stringify(location));
+    notifyAutoSave('Ubicación del Local');
+  } catch (e) {
+    console.warn('Error al guardar ubicación del local:', e);
+  }
+}
+
