@@ -281,3 +281,15 @@ VALUES (
 )
 ON CONFLICT (key) DO UPDATE
 SET value = EXCLUDED.value, updated_at = NOW();
+
+-- Menú Oficial de Platos de Sora (Lasaña Individual RD$ 350 y Familiar RD$ 700)
+INSERT INTO public.store_settings (key, value)
+VALUES (
+    'menu',
+    '[
+        {"id": "lasana-individual", "name": "Lasaña Casera (Porción Individual)", "price": 350, "category": "Lasañas", "is_available": true},
+        {"id": "lasana-familiar", "name": "Lasaña Casera (Familiar / Grande)", "price": 700, "category": "Lasañas", "is_available": true}
+    ]'::jsonb
+)
+ON CONFLICT (key) DO UPDATE
+SET value = EXCLUDED.value, updated_at = NOW();

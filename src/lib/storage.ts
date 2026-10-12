@@ -1,6 +1,6 @@
 'use client';
 
-import { Order, Client, ClientAddress, Expense, Profile } from '@/types/database.types';
+import { Order, Client, ClientAddress, Expense, Profile, MenuItem } from '@/types/database.types';
 
 // Comprobación de formato UUID estándar de Postgres
 export function isValidUuid(id: string | null | undefined): boolean {
@@ -335,6 +335,50 @@ export function saveStoredStoreLocation(location: StoreLocation) {
     notifyAutoSave('Ubicación del Local');
   } catch (e) {
     console.warn('Error al guardar ubicación del local:', e);
+  }
+}
+
+// ==================== PLATOS DEL MENÚ (MENU ITEMS) ====================
+export const DEFAULT_MENU_ITEMS: MenuItem[] = [
+  {
+    id: 'lasana-individual',
+    name: 'Lasaña Casera (Porción Individual)',
+    price: 350,
+    description: 'Lasaña artesanal horneada individual',
+    category: 'Lasañas',
+    is_available: true,
+  },
+  {
+    id: 'lasana-familiar',
+    name: 'Lasaña Casera (Familiar / Grande)',
+    price: 700,
+    description: 'Lasaña artesanal horneada tamaño familiar',
+    category: 'Lasañas',
+    is_available: true,
+  },
+];
+
+const MENU_STORAGE_KEY = 'sora_menu_items_v2';
+
+export function getStoredMenuItems(): MenuItem[] {
+  if (typeof window === 'undefined') return DEFAULT_MENU_ITEMS;
+  try {
+    const raw = localStorage.getItem(MENU_STORAGE_KEY);
+    if (!raw) return DEFAULT_MENU_ITEMS;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_MENU_ITEMS;
+  } catch (e) {
+    return DEFAULT_MENU_ITEMS;
+  }
+}
+
+export function saveStoredMenuItems(items: MenuItem[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(items));
+    notifyAutoSave('Menú de Platos');
+  } catch (e) {
+    console.warn('Error al guardar platos del menú localmente:', e);
   }
 }
 

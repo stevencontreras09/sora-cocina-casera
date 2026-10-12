@@ -55,6 +55,15 @@ export interface OrderItem {
   subtotal: number;
 }
 
+export interface MenuItem {
+  id: string;
+  name: string;
+  price: number;
+  description?: string;
+  category?: string;
+  is_available?: boolean;
+}
+
 export type PaymentMethod = 'efectivo' | 'transferencia';
 export type PaymentStatus = 'pagado' | 'cobrar_contra_entrega';
 export type OrderStatus =

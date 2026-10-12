@@ -10,6 +10,7 @@ import {
   PaymentMethod,
   PaymentStatus,
   OrderStatus,
+  MenuItem,
 } from '@/types/database.types';
 import { formatCurrency, cleanPhoneNumber } from '@/lib/utils';
 import {
@@ -18,6 +19,9 @@ import {
   mergeClientsWithCached,
   isValidUuid,
   generateUuid,
+  getStoredMenuItems,
+  saveStoredMenuItems,
+  DEFAULT_MENU_ITEMS,
 } from '@/lib/storage';
 import { triggerKitchenAlert } from '@/lib/audioAlerts';
 import { ProductionReminderAlerts } from '@/components/alerts/ProductionReminderAlerts';
@@ -26,6 +30,7 @@ import {
   DeliveryFeeEstimate,
   SORA_KITCHEN_COORDS,
 } from '@/lib/routeOptimizer';
+import { MenuManagerModal } from '@/components/ventas/MenuManagerModal';
 import {
   ShoppingBag,
   Plus,
@@ -48,19 +53,8 @@ import {
   Compass,
   Check,
   XCircle,
+  UtensilsCrossed,
 } from 'lucide-react';
-
-const MENU_ITEMS = [
-  { name: 'Plato Casero del Día', price: 350 },
-  { name: 'Pollo Guisado con Arroz y Habichuelas', price: 375 },
-  { name: 'Res Guisada Tradicional', price: 425 },
-  { name: 'Chivo Liniero al Caldero', price: 550 },
-  { name: 'Pescado con Coco Tradicional', price: 525 },
-  { name: 'Lasaña Casera Horneada', price: 390 },
-  { name: 'Porción Tostones / Ensalada', price: 150 },
-  { name: 'Jugo Natural de Chinola / Frutas', price: 120 },
-  { name: 'Postre Majarete / Dulce Casero', price: 150 },
-];
 
 export default function VentasPage() {
   const supabase = useMemo(() => createClient(), []);
@@ -68,6 +62,10 @@ export default function VentasPage() {
   // Clientes y Repartidores
   const [clients, setClients] = useState<Client[]>([]);
   const [deliveryDrivers, setDeliveryDrivers] = useState<{ id: string; name: string }[]>([]);
+
+  // Platos Dinámicos del Menú (Por defecto: Lasaña Individual RD$ 350 y Lasaña Familiar RD$ 700)
+  const [menuItems, setMenuItems] = useState<MenuItem[]>(() => getStoredMenuItems());
+  const [isMenuModalOpen, setIsMenuModalOpen] = useState(false);
 
   // Estado de edición de pedido
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
@@ -80,7 +78,7 @@ export default function VentasPage() {
   const [items, setItems] = useState<OrderItem[]>([
     {
       id: 'item-1',
-      name: 'Plato Casero del Día',
+      name: 'Lasaña Casera (Porción Individual)',
       quantity: 1,
       price: 350,
       subtotal: 350,
@@ -160,6 +158,22 @@ export default function VentasPage() {
           setOrders(cachedOrders);
         }
       }
+
+      // 4. Intentar cargar Menú de platos desde store_settings en Supabase si existe
+      try {
+        const { data: menuSetting } = await supabase
+          .from('store_settings')
+          .select('value')
+          .eq('key', 'menu')
+          .single();
+
+        if (menuSetting?.value && Array.isArray(menuSetting.value) && menuSetting.value.length > 0) {
+          setMenuItems(menuSetting.value);
+          saveStoredMenuItems(menuSetting.value);
+        }
+      } catch (e) {
+        // Fallback a localStorage
+      }
     } catch (err) {
       console.warn('Cargando respaldo local de ventas');
       const cached = getStoredOrders();
@@ -173,6 +187,22 @@ export default function VentasPage() {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase]);
+
+  // Guardar platos del menú tanto en memoria, localStorage y Supabase
+  const handleSaveMenuItems = async (newItems: MenuItem[]) => {
+    setMenuItems(newItems);
+    saveStoredMenuItems(newItems);
+
+    try {
+      await supabase.from('store_settings').upsert({
+        key: 'menu',
+        value: newItems,
+        updated_at: new Date().toISOString(),
+      });
+    } catch (e) {
+      // Persistido con éxito localmente
+    }
+  };
 
   const currentClient = useMemo(
     () => clients.find((c) => c.id === selectedClientId) || null,
@@ -230,7 +260,9 @@ export default function VentasPage() {
 
     if (field === 'name') {
       item.name = value;
-      const matched = MENU_ITEMS.find((m) => m.name === value);
+      const matched = menuItems.find(
+        (m) => m.name.toLowerCase().trim() === value.toLowerCase().trim()
+      );
       if (matched) {
         item.price = matched.price;
       }
@@ -246,14 +278,19 @@ export default function VentasPage() {
   };
 
   const handleAddItem = (dishName = '', price = 0) => {
+    const defaultDish =
+      menuItems[0] || { name: 'Lasaña Casera (Porción Individual)', price: 350 };
+    const finalName = dishName || defaultDish.name;
+    const finalPrice = price || defaultDish.price;
+
     setItems([
       ...items,
       {
         id: `item-${Date.now()}`,
-        name: dishName || 'Plato Casero Sora',
+        name: finalName,
         quantity: 1,
-        price: price || 350,
-        subtotal: price || 350,
+        price: finalPrice,
+        subtotal: finalPrice,
       },
     ]);
   };
@@ -313,10 +350,10 @@ export default function VentasPage() {
         : [
             {
               id: 'item-1',
-              name: 'Plato Casero del Día',
+              name: menuItems[0]?.name || 'Lasaña Casera (Porción Individual)',
               quantity: 1,
-              price: 350,
-              subtotal: 350,
+              price: menuItems[0]?.price || 350,
+              subtotal: menuItems[0]?.price || 350,
             },
           ]
     );
@@ -330,11 +367,11 @@ export default function VentasPage() {
     setProductionReminderTime(order.production_reminder_time || '60m');
 
     const itemsSub = (order.items || []).reduce((s, it) => s + it.subtotal, 0);
-    const existingFee =
+    const initialFee =
       order.delivery_fee !== undefined
         ? order.delivery_fee
         : Math.max(0, (order.total || 0) - itemsSub);
-    setDeliveryFee(existingFee);
+    setDeliveryFee(initialFee);
 
     window.scrollTo({ top: 120, behavior: 'smooth' });
   };
@@ -346,13 +383,15 @@ export default function VentasPage() {
     setDeliveryTime('');
     setIsScheduled(false);
     setDeliveryFee(0);
+    const defaultDish =
+      menuItems[0] || { name: 'Lasaña Casera (Porción Individual)', price: 350 };
     setItems([
       {
         id: `item-${Date.now()}`,
-        name: 'Plato Casero del Día',
+        name: defaultDish.name,
         quantity: 1,
-        price: 350,
-        subtotal: 350,
+        price: defaultDish.price,
+        subtotal: defaultDish.price,
       },
     ]);
   };
@@ -471,14 +510,16 @@ export default function VentasPage() {
         `¡Pedido #${editingOrder.order_number} modificado y guardado con éxito!`
       );
 
-      // Resetear formulario
+      // Resetear formulario con el primer plato del menú
+      const defaultDish =
+        menuItems[0] || { name: 'Lasaña Casera (Porción Individual)', price: 350 };
       setItems([
         {
           id: `item-${Date.now()}`,
-          name: 'Plato Casero del Día',
+          name: defaultDish.name,
           quantity: 1,
-          price: 350,
-          subtotal: 350,
+          price: defaultDish.price,
+          subtotal: defaultDish.price,
         },
       ]);
       setNotes('');
@@ -487,8 +528,8 @@ export default function VentasPage() {
       setDeliveryFee(0);
 
       setTimeout(() => {
-        setSuccessNotice(null);
-      }, 4500);
+        setSuccessNotice(null), 4500;
+      });
     } else {
       // 2. CREAR NUEVO PEDIDO
       const orderNumber = `SORA-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -578,14 +619,16 @@ export default function VentasPage() {
         `¡Pedido #${orderNumber} creado y guardado automáticamente! 🔔 Campana de cocina activada.`
       );
 
-      // Resetear formulario
+      // Resetear formulario con el primer plato del menú
+      const defaultDish =
+        menuItems[0] || { name: 'Lasaña Casera (Porción Individual)', price: 350 };
       setItems([
         {
           id: `item-${Date.now()}`,
-          name: 'Plato Casero del Día',
+          name: defaultDish.name,
           quantity: 1,
-          price: 350,
-          subtotal: 350,
+          price: defaultDish.price,
+          subtotal: defaultDish.price,
         },
       ]);
       setNotes('');
@@ -618,19 +661,30 @@ export default function VentasPage() {
               Creación, Edición y Despacho de Pedidos
             </h1>
             <p className="text-xs sm:text-sm text-text-sora/70">
-              Registra pedidos, calcula el costo de envío según la distancia desde Sora y administra el historial.
+              Registra pedidos, calcula el costo de envío según la distancia desde Sora y administra el menú de platos.
             </p>
           </div>
 
-          <button
-            onClick={loadData}
-            disabled={isLoadingOrders}
-            className="self-start sm:self-auto p-2.5 rounded-xl border border-border-sora bg-white text-text-sora hover:bg-bg-sora text-xs font-semibold transition-all shadow-sm flex items-center space-x-1.5"
-            title="Refrescar pedidos y clientes"
-          >
-            <RefreshCw className={`w-4 h-4 ${isLoadingOrders ? 'animate-spin text-primary-sora' : ''}`} />
-            <span className="hidden sm:inline">Actualizar</span>
-          </button>
+          <div className="flex items-center space-x-2 self-start sm:self-auto">
+            <button
+              onClick={() => setIsMenuModalOpen(true)}
+              className="p-2.5 rounded-xl border border-border-sora bg-white text-text-sora hover:bg-bg-sora text-xs font-semibold transition-all shadow-xs flex items-center space-x-1.5"
+              title="Gestionar platos del menú y sus precios"
+            >
+              <UtensilsCrossed className="w-4 h-4 text-primary-sora" />
+              <span>Editar Menú ({menuItems.length})</span>
+            </button>
+
+            <button
+              onClick={loadData}
+              disabled={isLoadingOrders}
+              className="p-2.5 rounded-xl border border-border-sora bg-white text-text-sora hover:bg-bg-sora text-xs font-semibold transition-all shadow-xs flex items-center space-x-1.5"
+              title="Refrescar pedidos y clientes"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoadingOrders ? 'animate-spin text-primary-sora' : ''}`} />
+              <span className="hidden sm:inline">Actualizar</span>
+            </button>
+          </div>
         </div>
 
         {/* Banner de Notificación de Éxito */}
@@ -935,31 +989,48 @@ export default function VentasPage() {
                 </div>
               </div>
 
-              {/* 4. ITEMS Y PLATOS DEL PEDIDO */}
+              {/* 4. ITEMS Y PLATOS DEL PEDIDO (CON GESTIÓN DINÁMICA DE MENÚ) */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-semibold text-text-sora/80 uppercase tracking-wider">
                     4. Platos del Menú *
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => handleAddItem()}
-                    className="inline-flex items-center space-x-1 text-xs font-bold text-primary-sora hover:underline"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Agregar Plato</span>
-                  </button>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsMenuModalOpen(true)}
+                      className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-xl bg-bg-sora hover:bg-border-sora/60 border border-border-sora text-text-sora/80 text-xs font-semibold transition-colors"
+                      title="Agregar, editar o eliminar platos del menú"
+                    >
+                      <UtensilsCrossed className="w-3.5 h-3.5 text-primary-sora" />
+                      <span>Gestionar Menú ({menuItems.length})</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleAddItem()}
+                      className="inline-flex items-center space-x-1 text-xs font-bold text-primary-sora hover:underline"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Agregar Línea</span>
+                    </button>
+                  </div>
                 </div>
 
+                {/* Accesos Rápidos con los platos actuales del Menú (Lasaña 350 y 700 por defecto) */}
                 <div className="flex flex-wrap gap-1.5 pb-1">
-                  {MENU_ITEMS.slice(0, 4).map((dish) => (
+                  {menuItems.map((dish) => (
                     <button
-                      key={dish.name}
+                      key={dish.id || dish.name}
                       type="button"
                       onClick={() => handleAddItem(dish.name, dish.price)}
-                      className="text-[11px] px-2.5 py-1 rounded-lg bg-bg-sora hover:bg-border-sora/60 text-text-sora/80 border border-border-sora transition-colors"
+                      className="text-[11px] px-2.5 py-1 rounded-xl bg-white hover:bg-primary-sora/10 hover:border-primary-sora/40 text-text-sora font-semibold border border-border-sora transition-all shadow-2xs flex items-center space-x-1"
                     >
-                      + {dish.name} ({formatCurrency(dish.price)})
+                      <Plus className="w-3 h-3 text-primary-sora" />
+                      <span>{dish.name}</span>
+                      <span className="text-primary-sora font-mono font-bold">
+                        ({formatCurrency(dish.price)})
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -1023,13 +1094,13 @@ export default function VentasPage() {
                 </div>
 
                 <datalist id="sora-dishes">
-                  {MENU_ITEMS.map((m) => (
-                    <option key={m.name} value={m.name} />
+                  {menuItems.map((m) => (
+                    <option key={m.id || m.name} value={m.name} />
                   ))}
                 </datalist>
               </div>
 
-              {/* 5. CÁLCULO ESTIMADO DE ENVÍO Y TOTAL A COBRAR (NUEVO REQUERIMIENTO) */}
+              {/* 5. CÁLCULO ESTIMADO DE ENVÍO Y TOTAL A COBRAR */}
               <div className="p-4 rounded-2xl bg-gradient-to-br from-primary-sora/10 to-amber-500/10 border border-primary-sora/25 space-y-3.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
@@ -1044,7 +1115,7 @@ export default function VentasPage() {
                   </span>
                 </div>
 
-                {/* Estimación de distancia basada en el local de Sora */}
+                {/* Estimación de distancia basada en el local oficial de Sora */}
                 {feeEstimate ? (
                   <div className="p-3 rounded-xl bg-white/90 border border-border-sora space-y-2">
                     <div className="flex items-center justify-between text-xs">
@@ -1247,7 +1318,7 @@ export default function VentasPage() {
                   </label>
                   <input
                     type="text"
-                    placeholder="Ej: Sin cebolla, extra salsa..."
+                    placeholder="Ej: Extra queso, sin salsa picante..."
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora"
@@ -1322,10 +1393,6 @@ export default function VentasPage() {
                   {orders.map((order) => {
                     const cleanPhone = cleanPhoneNumber(order.client_phone);
                     const orderFee = order.delivery_fee || 0;
-                    const itemsSubtotal = (order.items || []).reduce(
-                      (acc, it) => acc + (it.subtotal || it.price * it.quantity),
-                      0
-                    );
 
                     const whatsappMsg = encodeURIComponent(
                       `¡Hola ${order.client_name}! 🍲 Tu pedido #${order.order_number} en Sora Cocina Casera:\n` +
@@ -1501,6 +1568,14 @@ export default function VentasPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal de Gestión de Platos del Menú */}
+      <MenuManagerModal
+        isOpen={isMenuModalOpen}
+        onClose={() => setIsMenuModalOpen(false)}
+        menuItems={menuItems}
+        onSaveMenuItems={handleSaveMenuItems}
+      />
     </AppNavigation>
   );
 }
