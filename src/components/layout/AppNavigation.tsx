@@ -221,7 +221,7 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Botón cerrar sesión en móvil / tablet */}
-          <div className="pt-6 border-t border-border-sora max-w-lg mx-auto w-full">
+          <div className="pt-6 border-t border-border-sora max-w-lg mx-auto w-full text-center">
             <button
               onClick={handleSignOut}
               disabled={isSigningOut}
@@ -230,6 +230,9 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
               <LogOut className="w-4 h-4" />
               <span>{isSigningOut ? 'Cerrando sesión...' : 'Cerrar sesión'}</span>
             </button>
+            <span className="text-[10px] text-text-sora/40 font-mono mt-2.5 block">
+              Sora Cocina Casera • v1.2.1
+            </span>
           </div>
         </div>
       )}
@@ -309,7 +312,7 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Footer Sidebar: Botón visible de Cerrar Sesión */}
-        <div className="pt-4 border-t border-border-sora">
+        <div className="pt-4 border-t border-border-sora text-center">
           <button
             onClick={handleSignOut}
             disabled={isSigningOut}
@@ -319,6 +322,9 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
             <LogOut className="w-4 h-4" />
             <span>{isSigningOut ? 'Cerrando sesión...' : 'Cerrar sesión'}</span>
           </button>
+          <span className="text-[10px] text-text-sora/40 font-mono mt-2 block">
+            Sora Cocina Casera • v1.2.1
+          </span>
         </div>
       </aside>
 

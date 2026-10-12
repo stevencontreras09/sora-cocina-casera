@@ -117,24 +117,34 @@ ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.client_addresses ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Lectura de clientes para usuarios autenticados" ON public.clients;
-CREATE POLICY "Lectura de clientes para usuarios autenticados"
+DROP POLICY IF EXISTS "Escritura de clientes para usuarios autenticados" ON public.clients;
+DROP POLICY IF EXISTS "Permitir lectura de clientes" ON public.clients;
+DROP POLICY IF EXISTS "Permitir escritura de clientes" ON public.clients;
+
+CREATE POLICY "Permitir lectura de clientes"
     ON public.clients FOR SELECT
+    TO public
     USING (true);
 
-DROP POLICY IF EXISTS "Escritura de clientes para usuarios autenticados" ON public.clients;
-CREATE POLICY "Escritura de clientes para usuarios autenticados"
+CREATE POLICY "Permitir escritura de clientes"
     ON public.clients FOR ALL
+    TO public
     USING (true)
     WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Lectura de direcciones para usuarios autenticados" ON public.client_addresses;
-CREATE POLICY "Lectura de direcciones para usuarios autenticados"
+DROP POLICY IF EXISTS "Escritura de direcciones para usuarios autenticados" ON public.client_addresses;
+DROP POLICY IF EXISTS "Permitir lectura de direcciones" ON public.client_addresses;
+DROP POLICY IF EXISTS "Permitir escritura de direcciones" ON public.client_addresses;
+
+CREATE POLICY "Permitir lectura de direcciones"
     ON public.client_addresses FOR SELECT
+    TO public
     USING (true);
 
-DROP POLICY IF EXISTS "Escritura de direcciones para usuarios autenticados" ON public.client_addresses;
-CREATE POLICY "Escritura de direcciones para usuarios autenticados"
+CREATE POLICY "Permitir escritura de direcciones"
     ON public.client_addresses FOR ALL
+    TO public
     USING (true)
     WITH CHECK (true);
 
@@ -215,27 +225,6 @@ CREATE POLICY "Escritura de pedidos para autenticados"
     USING (true)
     WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Lectura de clientes para usuarios autenticados" ON public.clients;
-CREATE POLICY "Lectura de clientes para usuarios autenticados"
-    ON public.clients FOR SELECT
-    USING (true);
-
-DROP POLICY IF EXISTS "Escritura de clientes para usuarios autenticados" ON public.clients;
-CREATE POLICY "Escritura de clientes para usuarios autenticados"
-    ON public.clients FOR ALL
-    USING (true)
-    WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Lectura de direcciones para usuarios autenticados" ON public.client_addresses;
-CREATE POLICY "Lectura de direcciones para usuarios autenticados"
-    ON public.client_addresses FOR SELECT
-    USING (true);
-
-DROP POLICY IF EXISTS "Escritura de direcciones para usuarios autenticados" ON public.client_addresses;
-CREATE POLICY "Escritura de direcciones para usuarios autenticados"
-    ON public.client_addresses FOR ALL
-    USING (true)
-    WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Lectura de gastos para admin y coadmin" ON public.expenses;
 CREATE POLICY "Lectura de gastos para admin y coadmin"

@@ -1,6 +1,6 @@
 'use client';
 
-import { Order, Client, Expense, Profile } from '@/types/database.types';
+import { Order, Client, ClientAddress, Expense, Profile } from '@/types/database.types';
 
 // Comprobación de formato UUID estándar de Postgres
 export function isValidUuid(id: string | null | undefined): boolean {
@@ -62,6 +62,28 @@ export function saveStoredOrders(orders: Order[]) {
   }
 }
 
+// ==================== DIRECCIONES (CLIENT ADDRESSES) ====================
+const ADDRESSES_STORAGE_KEY = 'sora_client_addresses_cache_v2';
+
+export function getStoredAddresses(): ClientAddress[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(ADDRESSES_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+export function saveStoredAddresses(addresses: ClientAddress[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(ADDRESSES_STORAGE_KEY, JSON.stringify(addresses));
+  } catch (e) {
+    console.warn('Error al guardar direcciones localmente:', e);
+  }
+}
+
 // ==================== CLIENTES (CLIENTS) ====================
 const CLIENTS_STORAGE_KEY = 'sora_clients_cache_v2';
 
@@ -69,7 +91,32 @@ export function getStoredClients(): Client[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem(CLIENTS_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const clients: Client[] = raw ? JSON.parse(raw) : [];
+    
+    // Asegurar que cada cliente mantenga todas sus direcciones sincronizadas con el almacén dedicado
+    const allAddresses = getStoredAddresses();
+    if (allAddresses.length > 0) {
+      return clients.map((c) => {
+        const clientAddrs = allAddresses.filter((a) => a.client_id === c.id);
+        const existing = c.addresses || [];
+        const merged = [...existing];
+        clientAddrs.forEach((ca) => {
+          if (
+            !merged.some(
+              (ea) =>
+                ea.id === ca.id ||
+                (ea.address.trim().toLowerCase() === ca.address.trim().toLowerCase() &&
+                  ea.label === ca.label)
+            )
+          ) {
+            merged.push(ca);
+          }
+        });
+        return { ...c, addresses: merged };
+      });
+    }
+
+    return clients;
   } catch (e) {
     return [];
   }
@@ -79,10 +126,110 @@ export function saveStoredClients(clients: Client[]) {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(CLIENTS_STORAGE_KEY, JSON.stringify(clients));
+
+    // Consolidar y resguardar permanentemente todas las direcciones en almacenamiento dedicado
+    const allCurrentAddresses: ClientAddress[] = [];
+    clients.forEach((c) => {
+      (c.addresses || []).forEach((a) => {
+        if (a && a.id) allCurrentAddresses.push(a);
+      });
+    });
+    saveStoredAddresses(allCurrentAddresses);
+
     notifyAutoSave('Clientes y Direcciones');
   } catch (e) {
     console.warn('Error al guardar clientes localmente:', e);
   }
+}
+
+/**
+ * Función centralizada que fusiona clientes y direcciones garantizando CERO pérdidas:
+ * - Preserva 100% de las direcciones locales aunque Supabase no las tenga o esté vacío.
+ * - Desduplica inteligentemente por ID o por (dirección textual + etiqueta).
+ */
+export function mergeClientsWithCached(
+  incomingClients: Client[] = [],
+  incomingAddresses: ClientAddress[] = []
+): Client[] {
+  const cachedClients = getStoredClients();
+  const cachedAddresses = getStoredAddresses();
+
+  // Mapa de todas las direcciones conocidas
+  const allAddressesMap = new Map<string, ClientAddress>();
+  cachedAddresses.forEach((a) => {
+    if (a?.id) allAddressesMap.set(a.id, a);
+  });
+  incomingAddresses.forEach((a) => {
+    if (a?.id) allAddressesMap.set(a.id, a);
+  });
+
+  // Mapa de clientes
+  const clientsMap = new Map<string, Client>();
+
+  // 1. Cargar lo que ya estaba en caché
+  cachedClients.forEach((c) => {
+    if (c?.id) {
+      clientsMap.set(c.id, {
+        ...c,
+        addresses: [...(c.addresses || [])],
+      });
+    }
+  });
+
+  // 2. Fusionar con clientes entrantes (de Supabase o de formulario)
+  incomingClients.forEach((inc) => {
+    if (!inc?.id) return;
+    const existing = clientsMap.get(inc.id);
+    if (existing) {
+      const combinedAddresses = [...(existing.addresses || [])];
+      (inc.addresses || []).forEach((ia) => {
+        if (
+          !combinedAddresses.some(
+            (ca) =>
+              ca.id === ia.id ||
+              ca.address.trim().toLowerCase() === ia.address.trim().toLowerCase()
+          )
+        ) {
+          combinedAddresses.push(ia);
+        }
+      });
+
+      clientsMap.set(inc.id, {
+        ...existing,
+        ...inc,
+        addresses: combinedAddresses,
+      });
+    } else {
+      clientsMap.set(inc.id, {
+        ...inc,
+        addresses: inc.addresses ? [...inc.addresses] : [],
+      });
+    }
+  });
+
+  // 3. Vincular cualquier dirección huérfana de la lista global de direcciones a su cliente
+  allAddressesMap.forEach((addr) => {
+    if (!addr.client_id) return;
+    const client = clientsMap.get(addr.client_id);
+    if (client) {
+      const addrs = client.addresses || [];
+      if (
+        !addrs.some(
+          (a) =>
+            a.id === addr.id ||
+            (a.address.trim().toLowerCase() === addr.address.trim().toLowerCase() &&
+              a.label === addr.label)
+        )
+      ) {
+        addrs.push(addr);
+        client.addresses = addrs;
+      }
+    }
+  });
+
+  const mergedList = Array.from(clientsMap.values());
+  saveStoredClients(mergedList);
+  return mergedList;
 }
 
 // ==================== GASTOS (EXPENSES) ====================

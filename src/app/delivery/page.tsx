@@ -21,7 +21,10 @@ import {
   Package,
   Layers,
   Calendar,
+  ChevronRight,
+  Sparkles,
 } from 'lucide-react';
+import { DeliveryRoutePlanner } from '@/components/delivery/DeliveryRoutePlanner';
 
 export default function DeliveryMobilePage() {
   const { user, profile, role } = useAuth();
@@ -30,7 +33,7 @@ export default function DeliveryMobilePage() {
   // Lista limpia inicial con carga desde almacenamiento local si existe
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'activos' | 'historial'>('activos');
+  const [activeTab, setActiveTab] = useState<'activos' | 'ruta' | 'historial'>('activos');
 
   // Modal de confirmación para "Marcar como Entregado"
   const [orderToDeliver, setOrderToDeliver] = useState<Order | null>(null);
@@ -180,27 +183,41 @@ export default function DeliveryMobilePage() {
           </div>
 
           {/* Pestañas ergonómicas */}
-          <div className="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-border-sora">
+          <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mt-4 pt-3 border-t border-border-sora">
             <button
               onClick={() => setActiveTab('activos')}
-              className={`py-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 ${
+              className={`py-2.5 sm:py-3 rounded-2xl text-[11px] sm:text-xs font-bold transition-all flex items-center justify-center space-x-1 ${
                 activeTab === 'activos'
                   ? 'bg-primary-sora text-white shadow-sm'
                   : 'bg-bg-sora/60 text-text-sora/70 hover:bg-bg-sora'
               }`}
             >
-              <Layers className="w-4 h-4" />
+              <Layers className="w-3.5 h-3.5" />
               <span>Pendientes ({activeOrders.length})</span>
             </button>
             <button
+              onClick={() => setActiveTab('ruta')}
+              className={`py-2.5 sm:py-3 rounded-2xl text-[11px] sm:text-xs font-bold transition-all flex items-center justify-center space-x-1 ${
+                activeTab === 'ruta'
+                  ? 'bg-slate-950 text-white shadow-sm'
+                  : 'bg-primary-sora/10 text-primary-sora hover:bg-primary-sora/20 border border-primary-sora/30'
+              }`}
+            >
+              <Navigation className="w-3.5 h-3.5 text-rose-500" />
+              <span>Ruta Óptima</span>
+              {activeOrders.length >= 2 && (
+                <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping ml-0.5" />
+              )}
+            </button>
+            <button
               onClick={() => setActiveTab('historial')}
-              className={`py-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 ${
+              className={`py-2.5 sm:py-3 rounded-2xl text-[11px] sm:text-xs font-bold transition-all flex items-center justify-center space-x-1 ${
                 activeTab === 'historial'
                   ? 'bg-primary-sora text-white shadow-sm'
                   : 'bg-bg-sora/60 text-text-sora/70 hover:bg-bg-sora'
               }`}
             >
-              <CheckCircle2 className="w-4 h-4" />
+              <CheckCircle2 className="w-3.5 h-3.5" />
               <span>Entregados ({deliveredOrders.length})</span>
             </button>
           </div>
@@ -217,6 +234,34 @@ export default function DeliveryMobilePage() {
         {/* LISTADO DE PEDIDOS ACTIVOS EN RUTA */}
         {activeTab === 'activos' && (
           <div className="space-y-4">
+            {/* BANNER DE ACCESO DIRECTO A RUTA ÓPTIMA CUANDO HAY 2 O MÁS PEDIDOS */}
+            {activeOrders.length >= 2 && (
+              <div
+                onClick={() => setActiveTab('ruta')}
+                className="p-3.5 rounded-3xl bg-slate-900 text-white cursor-pointer shadow-md hover:bg-black transition-all flex items-center justify-between group active:scale-[0.98] border border-slate-800"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="w-9 h-9 rounded-2xl bg-primary-sora text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <Navigation className="w-4 h-4 text-white animate-pulse" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-xs flex items-center gap-1.5">
+                      <span>Preparar Ruta Óptima</span>
+                      <span className="text-[10px] font-mono bg-rose-500/30 text-rose-300 px-1.5 py-0.5 rounded-full">
+                        {activeOrders.length} entregas
+                      </span>
+                    </h4>
+                    <p className="text-[11px] text-white/70 mt-0.5">
+                      Ordena las paradas para ahorrar tiempo y combustible
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-1 text-xs font-bold text-rose-300 group-hover:translate-x-1 transition-transform">
+                  <span>Ver Ruta</span>
+                  <ChevronRight className="w-4 h-4" />
+                </div>
+              </div>
+            )}
             {activeOrders.map((order) => {
               const cleanPhone = cleanPhoneNumber(order.client_phone);
               const clientFirstName = order.client_name.split(' ')[0];
@@ -428,6 +473,15 @@ export default function DeliveryMobilePage() {
               </div>
             )}
           </div>
+        )}
+
+        {/* PESTAÑA: PREPARADOR DE RUTA ÓPTIMA MULTI-PARADA */}
+        {activeTab === 'ruta' && (
+          <DeliveryRoutePlanner
+            orders={activeOrders}
+            onMarkAsDelivered={(ord) => setOrderToDeliver(ord)}
+            onStartRoute={handleStartRoute}
+          />
         )}
 
         {/* PESTAÑA HISTORIAL: PEDIDOS ENTREGADOS */}

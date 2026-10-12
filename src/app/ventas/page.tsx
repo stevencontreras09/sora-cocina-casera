@@ -15,17 +15,22 @@ import { formatCurrency, cleanPhoneNumber } from '@/lib/utils';
 import {
   saveStoredOrders,
   getStoredOrders,
-  getStoredClients,
-  saveStoredClients,
+  mergeClientsWithCached,
   isValidUuid,
   generateUuid,
 } from '@/lib/storage';
 import { triggerKitchenAlert } from '@/lib/audioAlerts';
 import { ProductionReminderAlerts } from '@/components/alerts/ProductionReminderAlerts';
 import {
+  calculateEstimatedDeliveryFee,
+  DeliveryFeeEstimate,
+  SORA_KITCHEN_COORDS,
+} from '@/lib/routeOptimizer';
+import {
   ShoppingBag,
   Plus,
   Trash2,
+  Edit3,
   User,
   MapPin,
   Clock,
@@ -37,10 +42,12 @@ import {
   Search,
   AlertCircle,
   RefreshCw,
-  Calendar,
   Flame,
   Bell,
-  Sparkles,
+  X,
+  Compass,
+  Check,
+  XCircle,
 } from 'lucide-react';
 
 const MENU_ITEMS = [
@@ -62,6 +69,9 @@ export default function VentasPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [deliveryDrivers, setDeliveryDrivers] = useState<{ id: string; name: string }[]>([]);
 
+  // Estado de edición de pedido
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+
   // Estados del Formulario de Pedido
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [clientSearchQuery, setClientSearchQuery] = useState('');
@@ -77,12 +87,15 @@ export default function VentasPage() {
     },
   ]);
 
+  // Costo de envío dinámico / estimado por distancia
+  const [deliveryFee, setDeliveryFee] = useState<number>(0);
+
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('efectivo');
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('pagado');
   const [deliveryUserId, setDeliveryUserId] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
 
-  // HORARIO Y FECHA DE ENTREGA (NUEVO REQUERIMIENTO)
+  // Horario y fecha de entrega
   const todayStr = new Date().toISOString().split('T')[0];
   const [deliveryDate, setDeliveryDate] = useState<string>(todayStr);
   const [deliveryTime, setDeliveryTime] = useState<string>('');
@@ -100,29 +113,21 @@ export default function VentasPage() {
   const loadData = async () => {
     setIsLoadingOrders(true);
     try {
-      // 1. Cargar Clientes
+      // 1. Cargar Clientes y Direcciones con fusión segura (CERO pérdida de direcciones)
       const { data: clientsData } = await supabase
         .from('clients')
         .select('*')
         .order('name');
 
-      if (clientsData && clientsData.length > 0) {
-        const { data: addressesData } = await supabase
-          .from('client_addresses')
-          .select('*');
+      const { data: addressesData } = await supabase
+        .from('client_addresses')
+        .select('*');
 
-        const merged = clientsData.map((c) => ({
-          ...c,
-          addresses: (addressesData || []).filter((a) => a.client_id === c.id),
-        }));
-        setClients(merged);
-        saveStoredClients(merged);
-      } else {
-        const cachedClients = getStoredClients();
-        if (cachedClients.length > 0) {
-          setClients(cachedClients);
-        }
-      }
+      const mergedClients = mergeClientsWithCached(
+        clientsData || [],
+        addressesData || []
+      );
+      setClients(mergedClients);
 
       // 2. Cargar Repartidores
       const { data: driversData } = await supabase
@@ -194,6 +199,27 @@ export default function VentasPage() {
     [availableAddresses, selectedAddressId]
   );
 
+  // Estimación de costo de envío según coordenadas GPS de la dirección
+  const feeEstimate = useMemo<DeliveryFeeEstimate | null>(() => {
+    if (!currentAddress || typeof currentAddress.latitude !== 'number' || typeof currentAddress.longitude !== 'number') {
+      return null;
+    }
+    return calculateEstimatedDeliveryFee(
+      currentAddress.latitude,
+      currentAddress.longitude
+    );
+  }, [currentAddress]);
+
+  // Actualizar tarifa sugerida automáticamente si cambia la dirección y no se está editando
+  useEffect(() => {
+    if (editingOrder) return;
+    if (feeEstimate) {
+      setDeliveryFee(feeEstimate.suggestedFee);
+    } else {
+      setDeliveryFee(0);
+    }
+  }, [feeEstimate, editingOrder]);
+
   const handleItemChange = (
     index: number,
     field: 'name' | 'quantity' | 'price',
@@ -237,9 +263,16 @@ export default function VentasPage() {
     setItems(items.filter((_, i) => i !== index));
   };
 
-  const totalCalculated = useMemo(
+  // Subtotal solo de platos
+  const subtotalDishes = useMemo(
     () => items.reduce((sum, item) => sum + item.subtotal, 0),
     [items]
+  );
+
+  // Total global = Subtotal Platos + Tarifa de Envío
+  const totalCalculated = useMemo(
+    () => subtotalDishes + (Number(deliveryFee) || 0),
+    [subtotalDishes, deliveryFee]
   );
 
   const filteredClients = useMemo(() => {
@@ -251,7 +284,7 @@ export default function VentasPage() {
     );
   }, [clients, clientSearchQuery]);
 
-  // Actualizar estado de una orden (por ejemplo 'En Preparacion' al iniciar producción)
+  // Actualizar estado de una orden
   const handleUpdateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
     const updatedList = orders.map((o) =>
       o.id === orderId ? { ...o, status: newStatus } : o
@@ -262,109 +295,57 @@ export default function VentasPage() {
     try {
       await supabase
         .from('orders')
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .update({ status: newStatus })
         .eq('id', orderId);
     } catch (e) {
       console.warn('Actualización local persistida');
     }
   };
 
-  // 1. CREACIÓN DEL PEDIDO (GUARDADO AUTOMÁTICO PERSISTENTE)
-  const handleCreateOrder = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentClient) {
-      alert('Por favor selecciona un cliente para el pedido.');
-      return;
-    }
-
-    setIsSubmitting(true);
-    const orderNumber = `SORA-${Math.floor(1000 + Math.random() * 9000)}`;
-    const driverObj = deliveryDrivers.find((d) => d.id === deliveryUserId);
-    const newOrderId = generateUuid();
-
-    const newOrder: Order = {
-      id: newOrderId,
-      order_number: orderNumber,
-      client_id: currentClient.id,
-      client_name: currentClient.name,
-      client_phone: currentClient.phone,
-      address_id: currentAddress?.id,
-      address_label: currentAddress?.label || 'Dirección',
-      address: currentAddress?.address || 'Retiro en local',
-      address_reference: currentAddress?.reference || undefined,
-      latitude: currentAddress?.latitude,
-      longitude: currentAddress?.longitude,
-      items: items,
-      total: totalCalculated,
-      payment_method: paymentMethod,
-      payment_status: paymentStatus,
-      delivery_user_id: deliveryUserId || null,
-      delivery_user_name: driverObj?.name || 'Por asignar',
-      status: 'Pendiente',
-      delivery_date: deliveryDate,
-      delivery_time: deliveryTime || undefined,
-      production_reminder_time: productionReminderTime,
-      is_scheduled: isScheduled || deliveryDate > todayStr,
-      notes: notes,
-      created_at: new Date().toISOString(),
-    };
-
-    // 1. Guardar inmediatamente en almacenamiento local (cero pérdida de datos)
-    const updatedList = [newOrder, ...orders];
-    setOrders(updatedList);
-    saveStoredOrders(updatedList);
-
-    // 2. Enviar a Supabase con validación de tipos
-    try {
-      const supabasePayload: any = {
-        id: newOrderId,
-        order_number: orderNumber,
-        client_name: currentClient.name,
-        client_phone: currentClient.phone,
-        address: currentAddress?.address || 'Retiro en local',
-        address_label: currentAddress?.label || null,
-        address_reference: currentAddress?.reference || null,
-        latitude: currentAddress?.latitude || null,
-        longitude: currentAddress?.longitude || null,
-        items: items,
-        total: totalCalculated,
-        payment_method: paymentMethod,
-        payment_status: paymentStatus,
-        status: 'Pendiente',
-        delivery_date: deliveryDate,
-        delivery_time: deliveryTime || null,
-        production_reminder_time: productionReminderTime,
-        is_scheduled: isScheduled || deliveryDate > todayStr,
-        notes: notes || null,
-      };
-
-      if (isValidUuid(currentClient.id)) supabasePayload.client_id = currentClient.id;
-      if (currentAddress && isValidUuid(currentAddress.id)) supabasePayload.address_id = currentAddress.id;
-      if (isValidUuid(deliveryUserId)) {
-        supabasePayload.delivery_user_id = deliveryUserId;
-        supabasePayload.delivery_user_name = driverObj?.name || null;
-      }
-
-      const { error } = await supabase.from('orders').insert([supabasePayload]);
-      if (error) {
-        console.warn('Nota Supabase orders:', error.message);
-      }
-    } catch (err) {
-      console.warn('Orden guardada en caché local persistente');
-    }
-
-    // 3. Campana y vibración auditiva inmediata en cocina
-    triggerKitchenAlert(
-      '¡Nueva Orden en Cocina!',
-      `Pedido #${orderNumber} para ${currentClient.name} (${formatCurrency(totalCalculated)}). Entrega: ${deliveryTime || 'Inmediata'}.`,
-      'new_order',
-      orderNumber
+  // Cargar orden en modo edición
+  const handleEditOrder = (order: Order) => {
+    setEditingOrder(order);
+    setSelectedClientId(order.client_id || '');
+    setSelectedAddressId(order.address_id || '');
+    setItems(
+      order.items && order.items.length > 0
+        ? order.items
+        : [
+            {
+              id: 'item-1',
+              name: 'Plato Casero del Día',
+              quantity: 1,
+              price: 350,
+              subtotal: 350,
+            },
+          ]
     );
+    setPaymentMethod(order.payment_method || 'efectivo');
+    setPaymentStatus(order.payment_status || 'pagado');
+    setDeliveryUserId(order.delivery_user_id || '');
+    setNotes(order.notes || '');
+    setDeliveryDate(order.delivery_date || todayStr);
+    setDeliveryTime(order.delivery_time || '');
+    setIsScheduled(!!order.is_scheduled);
+    setProductionReminderTime(order.production_reminder_time || '60m');
 
-    setIsSubmitting(false);
-    setSuccessNotice(`¡Pedido #${orderNumber} creado y guardado automáticamente! 🔔 Campana de cocina activada.`);
+    const itemsSub = (order.items || []).reduce((s, it) => s + it.subtotal, 0);
+    const existingFee =
+      order.delivery_fee !== undefined
+        ? order.delivery_fee
+        : Math.max(0, (order.total || 0) - itemsSub);
+    setDeliveryFee(existingFee);
 
-    // Resetear formulario para el próximo pedido
+    window.scrollTo({ top: 120, behavior: 'smooth' });
+  };
+
+  // Cancelar modo de edición y limpiar formulario
+  const handleCancelEdit = () => {
+    setEditingOrder(null);
+    setNotes('');
+    setDeliveryTime('');
+    setIsScheduled(false);
+    setDeliveryFee(0);
     setItems([
       {
         id: `item-${Date.now()}`,
@@ -374,13 +355,248 @@ export default function VentasPage() {
         subtotal: 350,
       },
     ]);
-    setNotes('');
-    setDeliveryTime('');
-    setIsScheduled(false);
+  };
 
-    setTimeout(() => {
-      setSuccessNotice(null);
-    }, 4500);
+  // Eliminar pedido permanentemente
+  const handleDeleteOrder = async (orderId: string, orderNumber: string) => {
+    if (
+      !confirm(
+        `¿Estás seguro de que deseas eliminar permanentemente el pedido #${orderNumber}? Esta acción no se puede deshacer.`
+      )
+    ) {
+      return;
+    }
+
+    const updatedList = orders.filter((o) => o.id !== orderId);
+    setOrders(updatedList);
+    saveStoredOrders(updatedList);
+
+    if (editingOrder?.id === orderId) {
+      handleCancelEdit();
+    }
+
+    try {
+      if (isValidUuid(orderId)) {
+        await supabase.from('orders').delete().eq('id', orderId);
+      }
+    } catch (e) {
+      console.warn('Pedido eliminado localmente');
+    }
+
+    setSuccessNotice(`Pedido #${orderNumber} eliminado permanentemente.`);
+    setTimeout(() => setSuccessNotice(null), 3500);
+  };
+
+  // Marcar pedido como cancelado
+  const handleCancelOrderStatus = async (orderId: string, orderNumber: string) => {
+    if (!confirm(`¿Marcar el pedido #${orderNumber} como 'Cancelado'?`)) {
+      return;
+    }
+    await handleUpdateOrderStatus(orderId, 'Cancelado');
+    setSuccessNotice(`Pedido #${orderNumber} marcado como Cancelado.`);
+    setTimeout(() => setSuccessNotice(null), 3500);
+  };
+
+  // CREACIÓN O EDICIÓN DEL PEDIDO
+  const handleSubmitOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentClient) {
+      alert('Por favor selecciona un cliente para el pedido.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    const driverObj = deliveryDrivers.find((d) => d.id === deliveryUserId);
+
+    if (editingOrder) {
+      // 1. ACTUALIZAR PEDIDO EXISTENTE
+      const updatedOrder: Order = {
+        ...editingOrder,
+        client_id: currentClient.id,
+        client_name: currentClient.name,
+        client_phone: currentClient.phone,
+        address_id: currentAddress?.id,
+        address_label: currentAddress?.label || 'Dirección',
+        address: currentAddress?.address || 'Retiro en local',
+        address_reference: currentAddress?.reference || undefined,
+        latitude: currentAddress?.latitude,
+        longitude: currentAddress?.longitude,
+        items: items,
+        delivery_fee: Number(deliveryFee) || 0,
+        distance_km: feeEstimate?.distanceKm || undefined,
+        total: totalCalculated,
+        payment_method: paymentMethod,
+        payment_status: paymentStatus,
+        delivery_user_id: deliveryUserId || null,
+        delivery_user_name: driverObj?.name || 'Por asignar',
+        delivery_date: deliveryDate,
+        delivery_time: deliveryTime || undefined,
+        production_reminder_time: productionReminderTime,
+        is_scheduled: isScheduled || deliveryDate > todayStr,
+        notes: notes,
+        updated_at: new Date().toISOString(),
+      };
+
+      const updatedList = orders.map((o) =>
+        o.id === editingOrder.id ? updatedOrder : o
+      );
+      setOrders(updatedList);
+      saveStoredOrders(updatedList);
+
+      try {
+        if (isValidUuid(editingOrder.id)) {
+          await supabase
+            .from('orders')
+            .update({
+              client_id: isValidUuid(currentClient.id) ? currentClient.id : undefined,
+              client_name: currentClient.name,
+              client_phone: currentClient.phone,
+              address: currentAddress?.address || 'Retiro en local',
+              items: items,
+              total: totalCalculated,
+              payment_method: paymentMethod,
+              payment_status: paymentStatus,
+              delivery_date: deliveryDate,
+              notes: notes || null,
+            })
+            .eq('id', editingOrder.id);
+        }
+      } catch (err) {
+        console.warn('Orden actualizada en respaldo local');
+      }
+
+      setEditingOrder(null);
+      setIsSubmitting(false);
+      setSuccessNotice(
+        `¡Pedido #${editingOrder.order_number} modificado y guardado con éxito!`
+      );
+
+      // Resetear formulario
+      setItems([
+        {
+          id: `item-${Date.now()}`,
+          name: 'Plato Casero del Día',
+          quantity: 1,
+          price: 350,
+          subtotal: 350,
+        },
+      ]);
+      setNotes('');
+      setDeliveryTime('');
+      setIsScheduled(false);
+      setDeliveryFee(0);
+
+      setTimeout(() => {
+        setSuccessNotice(null);
+      }, 4500);
+    } else {
+      // 2. CREAR NUEVO PEDIDO
+      const orderNumber = `SORA-${Math.floor(1000 + Math.random() * 9000)}`;
+      const newOrderId = generateUuid();
+
+      const newOrder: Order = {
+        id: newOrderId,
+        order_number: orderNumber,
+        client_id: currentClient.id,
+        client_name: currentClient.name,
+        client_phone: currentClient.phone,
+        address_id: currentAddress?.id,
+        address_label: currentAddress?.label || 'Dirección',
+        address: currentAddress?.address || 'Retiro en local',
+        address_reference: currentAddress?.reference || undefined,
+        latitude: currentAddress?.latitude,
+        longitude: currentAddress?.longitude,
+        items: items,
+        delivery_fee: Number(deliveryFee) || 0,
+        distance_km: feeEstimate?.distanceKm || undefined,
+        total: totalCalculated,
+        payment_method: paymentMethod,
+        payment_status: paymentStatus,
+        delivery_user_id: deliveryUserId || null,
+        delivery_user_name: driverObj?.name || 'Por asignar',
+        status: 'Pendiente',
+        delivery_date: deliveryDate,
+        delivery_time: deliveryTime || undefined,
+        production_reminder_time: productionReminderTime,
+        is_scheduled: isScheduled || deliveryDate > todayStr,
+        notes: notes,
+        created_at: new Date().toISOString(),
+      };
+
+      const updatedList = [newOrder, ...orders];
+      setOrders(updatedList);
+      saveStoredOrders(updatedList);
+
+      try {
+        const supabasePayload: any = {
+          id: newOrderId,
+          order_number: orderNumber,
+          client_name: currentClient.name,
+          client_phone: currentClient.phone,
+          address: currentAddress?.address || 'Retiro en local',
+          address_label: currentAddress?.label || null,
+          address_reference: currentAddress?.reference || null,
+          latitude: currentAddress?.latitude || null,
+          longitude: currentAddress?.longitude || null,
+          items: items,
+          total: totalCalculated,
+          payment_method: paymentMethod,
+          payment_status: paymentStatus,
+          status: 'Pendiente',
+          delivery_date: deliveryDate,
+          delivery_time: deliveryTime || null,
+          production_reminder_time: productionReminderTime,
+          is_scheduled: isScheduled || deliveryDate > todayStr,
+          notes: notes || null,
+        };
+
+        if (isValidUuid(currentClient.id)) supabasePayload.client_id = currentClient.id;
+        if (currentAddress && isValidUuid(currentAddress.id)) supabasePayload.address_id = currentAddress.id;
+        if (isValidUuid(deliveryUserId)) {
+          supabasePayload.delivery_user_id = deliveryUserId;
+          supabasePayload.delivery_user_name = driverObj?.name || null;
+        }
+
+        const { error } = await supabase.from('orders').insert([supabasePayload]);
+        if (error) {
+          console.warn('Nota Supabase orders:', error.message);
+        }
+      } catch (err) {
+        console.warn('Orden guardada en caché local persistente');
+      }
+
+      // Campana auditiva de cocina
+      triggerKitchenAlert(
+        '¡Nueva Orden en Cocina!',
+        `Pedido #${orderNumber} para ${currentClient.name} (${formatCurrency(totalCalculated)}). Entrega: ${deliveryTime || 'Inmediata'}.`,
+        'new_order',
+        orderNumber
+      );
+
+      setIsSubmitting(false);
+      setSuccessNotice(
+        `¡Pedido #${orderNumber} creado y guardado automáticamente! 🔔 Campana de cocina activada.`
+      );
+
+      // Resetear formulario
+      setItems([
+        {
+          id: `item-${Date.now()}`,
+          name: 'Plato Casero del Día',
+          quantity: 1,
+          price: 350,
+          subtotal: 350,
+        },
+      ]);
+      setNotes('');
+      setDeliveryTime('');
+      setIsScheduled(false);
+      setDeliveryFee(0);
+
+      setTimeout(() => {
+        setSuccessNotice(null);
+      }, 4500);
+    }
   };
 
   return (
@@ -399,10 +615,10 @@ export default function VentasPage() {
               </span>
             </div>
             <h1 className="font-serif text-2xl sm:text-3xl font-bold text-text-sora mt-1 tracking-tight">
-              Creación y Despacho de Pedidos
+              Creación, Edición y Despacho de Pedidos
             </h1>
             <p className="text-xs sm:text-sm text-text-sora/70">
-              Registra pedidos, programa horarios de entrega con recordatorios automáticos de cocina y asigna repartidores.
+              Registra pedidos, calcula el costo de envío según la distancia desde Sora y administra el historial.
             </p>
           </div>
 
@@ -417,40 +633,80 @@ export default function VentasPage() {
           </button>
         </div>
 
-        {/* Notificación de Éxito */}
+        {/* Banner de Notificación de Éxito */}
         {successNotice && (
-          <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center space-x-2 animate-in fade-in">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
-            <span className="font-semibold text-sm">{successNotice}</span>
+          <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center justify-between animate-in fade-in">
+            <div className="flex items-center space-x-2">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+              <span className="font-semibold text-sm">{successNotice}</span>
+            </div>
+            <button
+              onClick={() => setSuccessNotice(null)}
+              className="p-1 text-emerald-600 hover:text-emerald-900"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         )}
 
-        {/* SISTEMA DE ALERTAS Y RECORDATORIOS DE PRODUCCIÓN */}
+        {/* ALERTA DE PRODUCCIÓN */}
         <ProductionReminderAlerts
           orders={orders}
           onUpdateOrderStatus={handleUpdateOrderStatus}
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
-          {/* COLUMNA IZQUIERDA: FORMULARIO DE NUEVO PEDIDO */}
+          {/* COLUMNA IZQUIERDA: FORMULARIO DE NUEVO/EDICIÓN PEDIDO */}
           <div className="lg:col-span-7 bg-white/85 rounded-3xl p-5 sm:p-6 border border-border-sora shadow-sora">
+            {/* Banner de Modo Edición */}
+            {editingOrder && (
+              <div className="mb-5 p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 flex items-center justify-between animate-in fade-in">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs">
+                    <Edit3 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-bold text-sm text-amber-950">
+                      Editando Pedido #{editingOrder.order_number}
+                    </h3>
+                    <p className="text-xs text-amber-800/80">
+                      Modifica platos, dirección, envío o repartidor y guarda los cambios.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  className="px-3 py-1.5 rounded-xl bg-white border border-amber-300 text-xs font-bold text-amber-900 hover:bg-amber-100 transition-colors shadow-sm"
+                >
+                  Cancelar Edición
+                </button>
+              </div>
+            )}
+
             <div className="pb-4 border-b border-border-sora flex items-center justify-between mb-5">
               <div className="flex items-center space-x-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-primary-sora text-white flex items-center justify-center shadow-sm">
-                  <ShoppingBag className="w-5 h-5" />
+                <div
+                  className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm text-white ${
+                    editingOrder ? 'bg-amber-600' : 'bg-primary-sora'
+                  }`}
+                >
+                  {editingOrder ? <Edit3 className="w-5 h-5" /> : <ShoppingBag className="w-5 h-5" />}
                 </div>
                 <div>
                   <h2 className="font-serif font-bold text-lg text-text-sora">
-                    Nuevo Pedido
+                    {editingOrder ? `Modificar Pedido #${editingOrder.order_number}` : 'Nuevo Pedido'}
                   </h2>
                   <p className="text-xs text-text-sora/60">
-                    Completar datos de entrega, platos y recordatorio de producción
+                    {editingOrder
+                      ? 'Actualiza los platos, envío y datos del cliente'
+                      : 'Completar datos de entrega, platos y recordatorio de producción'}
                   </p>
                 </div>
               </div>
             </div>
 
-            <form onSubmit={handleCreateOrder} className="space-y-5">
+            <form onSubmit={handleSubmitOrder} className="space-y-5">
               {/* 1. SELECCIÓN DE CLIENTE */}
               <div className="space-y-2">
                 <label className="block text-xs font-semibold text-text-sora/80 uppercase tracking-wider">
@@ -463,7 +719,7 @@ export default function VentasPage() {
                     <div>
                       <p className="font-bold">Aún no hay clientes registrados en el directorio.</p>
                       <p className="mt-0.5 text-[11px]">
-                        Ve a la pestaña <strong>Clientes</strong> para registrar el primero y asignarle dirección.
+                        Ve a la pestaña <strong>Clientes</strong> para registrar el primero y asignarle dirección en la misma vista.
                       </p>
                     </div>
                   </div>
@@ -514,9 +770,18 @@ export default function VentasPage() {
 
               {/* 2. DIRECCIÓN DE ENTREGA */}
               <div className="space-y-2">
-                <label className="block text-xs font-semibold text-text-sora/80 uppercase tracking-wider">
-                  2. Dirección de Entrega
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-text-sora/80 uppercase tracking-wider">
+                    2. Dirección de Entrega
+                  </label>
+                  {currentAddress && currentAddress.latitude && currentAddress.longitude && (
+                    <span className="text-[11px] text-emerald-700 font-semibold flex items-center">
+                      <Compass className="w-3 h-3 mr-1" />
+                      GPS Vinculado
+                    </span>
+                  )}
+                </div>
+
                 {availableAddresses.length === 0 ? (
                   <div className="p-3 rounded-2xl bg-bg-sora/60 border border-border-sora text-text-sora/70 text-xs">
                     Sin direcciones guardadas. El pedido se marcará como <strong>Retiro en Local</strong>.
@@ -536,7 +801,7 @@ export default function VentasPage() {
                 )}
               </div>
 
-              {/* 3. HORARIO DE ENTREGA Y RECORDATORIO DE PRODUCCIÓN (REQUERIMIENTO PRINCIPAL) */}
+              {/* 3. HORARIO DE ENTREGA Y RECORDATORIO DE PRODUCCIÓN */}
               <div className="p-4 rounded-2xl bg-bg-sora/60 border border-border-sora space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
@@ -551,7 +816,6 @@ export default function VentasPage() {
                   </span>
                 </div>
 
-                {/* Accesos rápidos de programación */}
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
@@ -589,7 +853,6 @@ export default function VentasPage() {
                     type="button"
                     onClick={() => {
                       setIsScheduled(true);
-                      // Mañana
                       const d = new Date();
                       d.setDate(d.getDate() + 1);
                       setDeliveryDate(d.toISOString().split('T')[0]);
@@ -605,43 +868,37 @@ export default function VentasPage() {
                   </button>
                 </div>
 
-                {/* Campos de fecha y hora */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div>
                     <label className="block text-[11px] font-semibold text-text-sora/70 mb-1">
                       Fecha de Entrega
                     </label>
-                    <div className="relative">
-                      <input
-                        type="date"
-                        min={todayStr}
-                        value={deliveryDate}
-                        onChange={(e) => {
-                          setDeliveryDate(e.target.value);
-                          if (e.target.value > todayStr) setIsScheduled(true);
-                        }}
-                        className="w-full px-3 py-2 rounded-xl border border-border-sora bg-white text-text-sora text-xs focus:outline-none focus:ring-1 focus:ring-primary-sora font-medium"
-                      />
-                    </div>
+                    <input
+                      type="date"
+                      min={todayStr}
+                      value={deliveryDate}
+                      onChange={(e) => {
+                        setDeliveryDate(e.target.value);
+                        if (e.target.value > todayStr) setIsScheduled(true);
+                      }}
+                      className="w-full px-3 py-2 rounded-xl border border-border-sora bg-white text-text-sora text-xs focus:outline-none focus:ring-1 focus:ring-primary-sora font-medium"
+                    />
                   </div>
 
                   <div>
                     <label className="block text-[11px] font-semibold text-text-sora/70 mb-1">
                       Hora Prometida de Entrega
                     </label>
-                    <div className="flex items-center space-x-1.5">
-                      <input
-                        type="time"
-                        value={deliveryTime}
-                        onChange={(e) => setDeliveryTime(e.target.value)}
-                        placeholder="Ej: 12:30"
-                        className="w-full px-3 py-2 rounded-xl border border-border-sora bg-white text-text-sora text-xs focus:outline-none focus:ring-1 focus:ring-primary-sora font-medium"
-                      />
-                    </div>
+                    <input
+                      type="time"
+                      value={deliveryTime}
+                      onChange={(e) => setDeliveryTime(e.target.value)}
+                      placeholder="Ej: 12:30"
+                      className="w-full px-3 py-2 rounded-xl border border-border-sora bg-white text-text-sora text-xs focus:outline-none focus:ring-1 focus:ring-primary-sora font-medium"
+                    />
                   </div>
                 </div>
 
-                {/* Botones rápidos de horas habituales de comida dominicana */}
                 <div className="flex flex-wrap items-center gap-1.5 pt-1">
                   <span className="text-[10px] text-text-sora/50 font-medium">Horas comunes:</span>
                   {['12:00', '12:30', '13:00', '13:30', '14:00', '19:30'].map((th) => (
@@ -660,7 +917,6 @@ export default function VentasPage() {
                   ))}
                 </div>
 
-                {/* Selector de Anticipación para Recordatorio de Producción */}
                 <div className="pt-2 border-t border-border-sora/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <div className="flex items-center space-x-1.5 text-xs text-text-sora">
                     <Flame className="w-3.5 h-3.5 text-amber-600" />
@@ -695,7 +951,6 @@ export default function VentasPage() {
                   </button>
                 </div>
 
-                {/* Sugerencias Rápidas de Platos de Sora en DOP */}
                 <div className="flex flex-wrap gap-1.5 pb-1">
                   {MENU_ITEMS.slice(0, 4).map((dish) => (
                     <button
@@ -774,19 +1029,124 @@ export default function VentasPage() {
                 </datalist>
               </div>
 
-              {/* 5. TOTAL CALCULADO AUTOMÁTICAMENTE (DOP) */}
-              <div className="p-4 rounded-2xl bg-primary-sora/10 border border-primary-sora/25 flex items-center justify-between">
-                <div>
-                  <span className="text-xs font-bold text-primary-sora uppercase tracking-wider">
-                    Total a Cobrar
+              {/* 5. CÁLCULO ESTIMADO DE ENVÍO Y TOTAL A COBRAR (NUEVO REQUERIMIENTO) */}
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-primary-sora/10 to-amber-500/10 border border-primary-sora/25 space-y-3.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Truck className="w-4 h-4 text-primary-sora" />
+                    <span className="text-xs font-bold text-primary-sora uppercase tracking-wider">
+                      5. Envío y Desglose de Cobro
+                    </span>
+                  </div>
+
+                  <span className="text-[11px] font-semibold text-text-sora/70">
+                    Subtotal Platos: {formatCurrency(subtotalDishes)}
                   </span>
-                  <p className="text-[11px] text-text-sora/60">
-                    Calculado automáticamente ({items.reduce((acc, i) => acc + i.quantity, 0)} ítems)
-                  </p>
                 </div>
-                <span className="font-serif text-2xl font-bold text-primary-sora">
-                  {formatCurrency(totalCalculated)}
-                </span>
+
+                {/* Estimación de distancia basada en el local de Sora */}
+                {feeEstimate ? (
+                  <div className="p-3 rounded-xl bg-white/90 border border-border-sora space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-text-sora/70 flex items-center">
+                        <Compass className="w-3.5 h-3.5 mr-1 text-primary-sora" />
+                        Distancia desde Cocina Sora:
+                      </span>
+                      <span className="font-bold text-text-sora">
+                        ~{feeEstimate.distanceKm} km (Aprox. {feeEstimate.estimatedMinutes} min en moto)
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-text-sora/60 text-[11px]">
+                        Tarifa sugerida:
+                      </span>
+                      <span className="font-semibold text-emerald-700 text-xs">
+                        {formatCurrency(feeEstimate.suggestedFee)} ({feeEstimate.breakdown})
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-2.5 rounded-xl bg-white/70 border border-border-sora text-[11px] text-text-sora/60">
+                    📍 Coordenadas GPS no detectadas o Retiro en local. Puedes ajustar el costo de envío manualmente.
+                  </div>
+                )}
+
+                {/* Selector / Ajuste del Costo de Envío */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+                  <div className="flex items-center space-x-2">
+                    <label className="text-xs font-semibold text-text-sora/80">
+                      Costo de Envío (DOP):
+                    </label>
+                    <div className="relative w-28">
+                      <span className="absolute left-2.5 top-2 text-xs text-text-sora/50 font-bold">
+                        RD$
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="25"
+                        value={deliveryFee}
+                        onChange={(e) => setDeliveryFee(Math.max(0, parseFloat(e.target.value) || 0))}
+                        className="w-full pl-9 pr-2 py-1.5 rounded-xl border border-border-sora bg-white text-xs font-bold text-text-sora text-right font-mono focus:outline-none focus:ring-1 focus:ring-primary-sora"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Botones rápidos de ajuste */}
+                  <div className="flex items-center space-x-1.5">
+                    {feeEstimate && (
+                      <button
+                        type="button"
+                        onClick={() => setDeliveryFee(feeEstimate.suggestedFee)}
+                        className="px-2 py-1 rounded-lg text-[10px] font-bold bg-white hover:bg-border-sora/30 border border-border-sora text-primary-sora transition-colors"
+                        title="Usar tarifa calculada por GPS"
+                      >
+                        Sugerido ({feeEstimate.suggestedFee})
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setDeliveryFee(0)}
+                      className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-colors ${
+                        deliveryFee === 0
+                          ? 'bg-emerald-600 text-white border-emerald-600'
+                          : 'bg-white hover:bg-border-sora/30 border-border-sora text-text-sora/70'
+                      }`}
+                    >
+                      Gratis / Local (0)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeliveryFee((prev) => Math.max(0, prev - 25))}
+                      className="px-2 py-1 rounded-lg text-[10px] font-bold bg-white hover:bg-border-sora/30 border border-border-sora text-text-sora/70"
+                    >
+                      -25
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeliveryFee((prev) => prev + 25)}
+                      className="px-2 py-1 rounded-lg text-[10px] font-bold bg-white hover:bg-border-sora/30 border border-border-sora text-text-sora/70"
+                    >
+                      +25
+                    </button>
+                  </div>
+                </div>
+
+                {/* Total Final */}
+                <div className="pt-2 border-t border-primary-sora/20 flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-primary-sora uppercase tracking-wider block">
+                      Total a Cobrar
+                    </span>
+                    <span className="text-[11px] text-text-sora/60">
+                      Platos ({formatCurrency(subtotalDishes)}) + Envío ({formatCurrency(deliveryFee)})
+                    </span>
+                  </div>
+                  <span className="font-serif text-2xl font-bold text-primary-sora">
+                    {formatCurrency(totalCalculated)}
+                  </span>
+                </div>
               </div>
 
               {/* 6. MÉTODO Y ESTADO DE PAGO */}
@@ -856,7 +1216,7 @@ export default function VentasPage() {
                 </div>
               </div>
 
-              {/* 7. SELECTOR DE REPARTIDOR Y NOTAS */}
+              {/* 7. ASIGNAR REPARTIDOR Y NOTAS */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-text-sora/80 mb-1.5 uppercase tracking-wider">
@@ -895,22 +1255,52 @@ export default function VentasPage() {
                 </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={isSubmitting || !currentClient}
-                className="w-full py-3.5 rounded-2xl bg-primary-sora hover:bg-primary-hover text-white font-semibold text-sm transition-all shadow-md shadow-primary-sora/25 active:scale-98 disabled:opacity-50 flex items-center justify-center space-x-2"
-              >
-                <Bell className="w-4 h-4 animate-bounce" />
-                <span>
-                  {isSubmitting
-                    ? 'Guardando pedido...'
-                    : 'Guardar Pedido y Activar Timbre de Cocina 🔔'}
-                </span>
-              </button>
+              {/* Botón de Enviar (Crear o Actualizar) */}
+              <div className="flex items-center space-x-3 pt-2">
+                {editingOrder && (
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    className="px-5 py-3.5 rounded-2xl border border-border-sora bg-white hover:bg-bg-sora text-text-sora font-semibold text-xs transition-all shadow-xs"
+                  >
+                    Cancelar
+                  </button>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting || !currentClient}
+                  className={`flex-1 py-3.5 rounded-2xl font-semibold text-sm transition-all shadow-md active:scale-98 disabled:opacity-50 flex items-center justify-center space-x-2 text-white ${
+                    editingOrder
+                      ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/25'
+                      : 'bg-primary-sora hover:bg-primary-hover shadow-primary-sora/25'
+                  }`}
+                >
+                  {editingOrder ? (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>
+                        {isSubmitting
+                          ? 'Guardando cambios...'
+                          : `Actualizar Pedido #${editingOrder.order_number}`}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Bell className="w-4 h-4 animate-bounce" />
+                      <span>
+                        {isSubmitting
+                          ? 'Guardando pedido...'
+                          : 'Guardar Pedido y Activar Timbre de Cocina 🔔'}
+                      </span>
+                    </>
+                  )}
+                </button>
+              </div>
             </form>
           </div>
 
-          {/* COLUMNA DERECHA: HISTORIAL DE PEDIDOS */}
+          {/* COLUMNA DERECHA: HISTORIAL DE PEDIDOS CON EDICIÓN Y BORRADO */}
           <div className="lg:col-span-5 space-y-4">
             <div className="bg-white/85 rounded-3xl p-5 sm:p-6 border border-border-sora shadow-sora">
               <div className="flex items-center justify-between pb-4 border-b border-border-sora mb-4">
@@ -928,20 +1318,39 @@ export default function VentasPage() {
               </div>
 
               {orders.length > 0 ? (
-                <div className="space-y-3.5 max-h-[750px] overflow-y-auto pr-1">
+                <div className="space-y-3.5 max-h-[780px] overflow-y-auto pr-1">
                   {orders.map((order) => {
                     const cleanPhone = cleanPhoneNumber(order.client_phone);
-                    const whatsappMsg = encodeURIComponent(
-                      `¡Hola ${order.client_name}! 🍲 Tu pedido #${order.order_number} en Sora Cocina Casera por un total de ${formatCurrency(order.total)} ha sido registrado exitosamente.${
-                        order.delivery_time ? ` Entrega programada: ${order.delivery_time}.` : ''
-                      }`
+                    const orderFee = order.delivery_fee || 0;
+                    const itemsSubtotal = (order.items || []).reduce(
+                      (acc, it) => acc + (it.subtotal || it.price * it.quantity),
+                      0
                     );
+
+                    const whatsappMsg = encodeURIComponent(
+                      `¡Hola ${order.client_name}! 🍲 Tu pedido #${order.order_number} en Sora Cocina Casera:\n` +
+                        (order.items || [])
+                          .map((it) => `• ${it.quantity}x ${it.name} (${formatCurrency(it.subtotal)})`)
+                          .join('\n') +
+                        (orderFee > 0 ? `\n🛵 Envío: ${formatCurrency(orderFee)}` : '') +
+                        `\n💰 Total: ${formatCurrency(order.total)}` +
+                        (order.delivery_time ? `\n⏰ Horario de entrega: ${order.delivery_time}` : '') +
+                        `\n📍 Dirección: ${order.address}` +
+                        `\n\n¡Muchas gracias por elegir Sora!`
+                    );
+
+                    const isBeingEdited = editingOrder?.id === order.id;
 
                     return (
                       <div
                         key={order.id}
-                        className="p-4 rounded-2xl bg-white border border-border-sora shadow-sm space-y-2.5 hover:border-primary-sora/40 transition-colors"
+                        className={`p-4 rounded-2xl bg-white border transition-all space-y-2.5 ${
+                          isBeingEdited
+                            ? 'border-amber-500 ring-2 ring-amber-500/20 shadow-md'
+                            : 'border-border-sora shadow-xs hover:border-primary-sora/40'
+                        }`}
                       >
+                        {/* Cabecera de la tarjeta */}
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-2">
                             <span className="font-mono text-xs font-bold text-primary-sora bg-bg-sora px-2 py-0.5 rounded-md border border-border-sora">
@@ -951,12 +1360,15 @@ export default function VentasPage() {
                               {order.client_name}
                             </span>
                           </div>
+
                           <span
                             className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border uppercase ${
                               (order.status || '').toLowerCase() === 'entregado'
                                 ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                                 : (order.status || '').toLowerCase() === 'en preparacion'
                                 ? 'bg-blue-50 text-blue-800 border-blue-200'
+                                : (order.status || '').toLowerCase() === 'cancelado'
+                                ? 'bg-red-50 text-red-800 border-red-200'
                                 : 'bg-amber-50 text-amber-800 border-amber-200'
                             }`}
                           >
@@ -989,6 +1401,7 @@ export default function VentasPage() {
                           )}
                         </div>
 
+                        {/* Dirección */}
                         <div className="text-xs text-text-sora/70 space-y-1">
                           <p className="flex items-center">
                             <MapPin className="w-3.5 h-3.5 mr-1 text-primary-sora flex-shrink-0" />
@@ -996,7 +1409,7 @@ export default function VentasPage() {
                           </p>
                         </div>
 
-                        {/* Total y Pago en DOP */}
+                        {/* Total, Envío y Estado de Pago */}
                         <div className="flex items-center justify-between pt-1 border-t border-border-sora/60">
                           <div className="text-[11px]">
                             <span className="capitalize font-medium text-text-sora">
@@ -1011,21 +1424,66 @@ export default function VentasPage() {
                             >
                               {order.payment_status === 'pagado' ? 'Pagado' : 'Contra entrega'}
                             </span>
+                            {orderFee > 0 && (
+                              <span className="block text-[10px] text-text-sora/50">
+                                Incluye envío: {formatCurrency(orderFee)}
+                              </span>
+                            )}
                           </div>
                           <span className="text-sm font-bold text-primary-sora font-mono">
                             {formatCurrency(parseFloat(order.total as any) || 0)}
                           </span>
                         </div>
 
-                        <div className="pt-1">
+                        {/* ACCIONES: EDITAR, CANCELAR, BORRAR Y WHATSAPP */}
+                        <div className="pt-2 border-t border-border-sora/40 flex items-center justify-between gap-1.5">
+                          <div className="flex items-center space-x-1">
+                            {/* Botón Editar */}
+                            <button
+                              type="button"
+                              onClick={() => handleEditOrder(order)}
+                              className="p-1.5 rounded-xl border border-border-sora text-text-sora/70 hover:text-primary-sora hover:bg-primary-sora/10 text-xs font-semibold transition-colors flex items-center space-x-1"
+                              title="Editar pedido"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline text-[11px]">Editar</span>
+                            </button>
+
+                            {/* Botón Cancelar Pedido (si no está cancelado) */}
+                            {order.status !== 'Cancelado' && (
+                              <button
+                                type="button"
+                                onClick={() => handleCancelOrderStatus(order.id, order.order_number)}
+                                className="p-1.5 rounded-xl border border-border-sora text-text-sora/70 hover:text-amber-700 hover:bg-amber-50 text-xs font-semibold transition-colors flex items-center space-x-1"
+                                title="Marcar como cancelado"
+                              >
+                                <XCircle className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline text-[11px]">Cancelar</span>
+                              </button>
+                            )}
+
+                            {/* Botón Eliminar Permanente */}
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteOrder(order.id, order.order_number)}
+                              className="p-1.5 rounded-xl border border-border-sora text-text-sora/70 hover:text-red-600 hover:bg-red-50 text-xs font-semibold transition-colors flex items-center space-x-1"
+                              title="Eliminar pedido permanentemente"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline text-[11px]">Borrar</span>
+                            </button>
+                          </div>
+
+                          {/* Notificación de WhatsApp */}
                           <a
                             href={`https://wa.me/${cleanPhone}?text=${whatsappMsg}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="w-full flex items-center justify-center space-x-1.5 py-2 rounded-xl bg-whatsapp hover:bg-[#20bd5a] text-white text-xs font-semibold transition-all shadow-sm active:scale-95"
+                            className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-whatsapp hover:bg-[#20bd5a] text-white text-[11px] font-semibold transition-all shadow-xs active:scale-95 flex-shrink-0"
+                            title="Enviar resumen por WhatsApp"
                           >
                             <MessageCircle className="w-3.5 h-3.5" />
-                            <span>Notificar al Cliente (WhatsApp)</span>
+                            <span>WhatsApp</span>
                           </a>
                         </div>
                       </div>

@@ -4,12 +4,8 @@ import React, { useState, useEffect } from 'react';
 import {
   Sparkles,
   X,
-  Bell,
   ChevronRight,
-  CheckCircle2,
-  Clock,
   Lightbulb,
-  ExternalLink,
   ShieldCheck,
   Smartphone,
   MapPin,
@@ -17,28 +13,30 @@ import {
   Printer,
   Volume2,
   PackageCheck,
+  Truck,
+  Edit3,
 } from 'lucide-react';
 
 export function SystemUpdateNotice() {
   const [isBannerVisible, setIsBannerVisible] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Leer estado de visibilidad del banner desde localStorage
+  // Leer estado de visibilidad del banner desde localStorage para la v1.2.1
   useEffect(() => {
     try {
-      const dismissed = localStorage.getItem('sora_update_banner_v1_2_dismissed');
+      const dismissed = localStorage.getItem('sora_update_banner_v1_2_1_dismissed');
       if (dismissed === 'true') {
         setIsBannerVisible(false);
       }
     } catch (e) {
-      // Ignorar errores en modo SSR o sandbox
+      // Ignorar errores en SSR o sandbox
     }
   }, []);
 
   const handleDismissBanner = () => {
     setIsBannerVisible(false);
     try {
-      localStorage.setItem('sora_update_banner_v1_2_dismissed', 'true');
+      localStorage.setItem('sora_update_banner_v1_2_1_dismissed', 'true');
     } catch (e) {}
   };
 
@@ -54,10 +52,10 @@ export function SystemUpdateNotice() {
               </span>
               <div className="text-xs text-text-sora">
                 <span className="font-bold text-primary-sora mr-1.5 uppercase tracking-wider text-[11px] bg-primary-sora/10 px-2 py-0.5 rounded-full border border-primary-sora/20">
-                  Actualización v1.2.0
+                  Actualización v1.2.1
                 </span>
                 <span className="font-medium">
-                  Moneda DOP (RD$), accesos personalizados por función y optimización para iPad y móvil.
+                  Direcciones en la misma pantalla, edición/borrado de pedidos y cálculo de costo de envío por distancia.
                 </span>
               </div>
             </div>
@@ -67,7 +65,7 @@ export function SystemUpdateNotice() {
                 onClick={() => setIsModalOpen(true)}
                 className="inline-flex items-center space-x-1 text-xs font-bold text-primary-sora hover:text-primary-hover px-2.5 py-1 rounded-lg hover:bg-primary-sora/10 transition-colors"
               >
-                <span>Ver Próximas Mejoras</span>
+                <span>Ver Novedades</span>
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>
               <button
@@ -93,7 +91,7 @@ export function SystemUpdateNotice() {
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-sora opacity-75" />
           <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary-sora" />
         </span>
-        <span className="group-hover:text-primary-sora transition-colors">v1.2.0 • Novedades</span>
+        <span className="group-hover:text-primary-sora transition-colors">v1.2.1 • Novedades</span>
       </button>
 
       {/* 3. MODAL DETALLADO CON HOJA DE RUTA Y NOVEDADES */}
@@ -108,10 +106,10 @@ export function SystemUpdateNotice() {
                 </div>
                 <div>
                   <h3 className="font-serif font-bold text-lg text-text-sora leading-tight">
-                    Actualizaciones y Mejoras del Sistema
+                    Novedades de la Versión v1.2.1
                   </h3>
                   <p className="text-xs text-text-sora/60 mt-0.5">
-                    Sora Cocina Casera • Registro de cambios y próximas funciones
+                    Sora Cocina Casera • Registro de mejoras y optimizaciones
                   </p>
                 </div>
               </div>
@@ -125,11 +123,11 @@ export function SystemUpdateNotice() {
 
             {/* Contenido scrolleable */}
             <div className="p-6 overflow-y-auto space-y-6 text-xs text-text-sora/80">
-              {/* Sección 1: Versión Actual */}
+              {/* Sección 1: Versión Actual v1.2.1 */}
               <div className="space-y-3">
                 <div className="flex items-center space-x-2">
                   <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                    Versión Actual (v1.2.0)
+                    Versión Actual (v1.2.1)
                   </span>
                   <span className="text-emerald-700 font-semibold text-[11px]">
                     ● Desplegada en Producción
@@ -139,41 +137,41 @@ export function SystemUpdateNotice() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div className="p-3.5 rounded-2xl bg-bg-sora/70 border border-border-sora space-y-1.5">
                     <div className="flex items-center space-x-2 text-text-sora font-bold text-xs">
+                      <MapPin className="w-4 h-4 text-emerald-600" />
+                      <span>Direcciones en la Misma Pantalla</span>
+                    </div>
+                    <p className="text-[11px] text-text-sora/70 leading-relaxed">
+                      Al crear un cliente, la dirección, mapa interactivo y referencia se guardan en el mismo formulario sin cambiar de pestaña, con persistencia garantizada.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-bg-sora/70 border border-border-sora space-y-1.5">
+                    <div className="flex items-center space-x-2 text-text-sora font-bold text-xs">
+                      <Edit3 className="w-4 h-4 text-amber-600" />
+                      <span>Edición y Borrado de Pedidos</span>
+                    </div>
+                    <p className="text-[11px] text-text-sora/70 leading-relaxed">
+                      Posibilidad de modificar pedidos existentes, marcarlos como cancelados o eliminarlos de manera permanente con confirmación de seguridad.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-bg-sora/70 border border-border-sora space-y-1.5">
+                    <div className="flex items-center space-x-2 text-text-sora font-bold text-xs">
+                      <Truck className="w-4 h-4 text-primary-sora" />
+                      <span>Cálculo de Costo de Envío por GPS</span>
+                    </div>
+                    <p className="text-[11px] text-text-sora/70 leading-relaxed">
+                      Estimación automática de tarifa según distancia desde la cocina central de Sora (RD$ 100 base + RD$ 25/km adicional) con total ajustable.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-bg-sora/70 border border-border-sora space-y-1.5">
+                    <div className="flex items-center space-x-2 text-text-sora font-bold text-xs">
                       <DollarSign className="w-4 h-4 text-emerald-600" />
                       <span>Moneda Dominicana (DOP / RD$)</span>
                     </div>
                     <p className="text-[11px] text-text-sora/70 leading-relaxed">
-                      Todas las ventas, gastos, balances y platos operan bajo la moneda oficial dominicana con formato RD$.
-                    </p>
-                  </div>
-
-                  <div className="p-3.5 rounded-2xl bg-bg-sora/70 border border-border-sora space-y-1.5">
-                    <div className="flex items-center space-x-2 text-text-sora font-bold text-xs">
-                      <ShieldCheck className="w-4 h-4 text-primary-sora" />
-                      <span>Control Granular de Funciones</span>
-                    </div>
-                    <p className="text-[11px] text-text-sora/70 leading-relaxed">
-                      El administrador puede activar o desactivar individualmente el acceso a Ventas, Clientes, Gastos, Delivery y Reportes para cada usuario.
-                    </p>
-                  </div>
-
-                  <div className="p-3.5 rounded-2xl bg-bg-sora/70 border border-border-sora space-y-1.5">
-                    <div className="flex items-center space-x-2 text-text-sora font-bold text-xs">
-                      <Smartphone className="w-4 h-4 text-blue-600" />
-                      <span>Optimización para iPad y Celulares</span>
-                    </div>
-                    <p className="text-[11px] text-text-sora/70 leading-relaxed">
-                      Diseño adaptable que aprovecha el 100% de la pantalla del iPad en vertical y botones grandes para una sola mano en móviles.
-                    </p>
-                  </div>
-
-                  <div className="p-3.5 rounded-2xl bg-bg-sora/70 border border-border-sora space-y-1.5">
-                    <div className="flex items-center space-x-2 text-text-sora font-bold text-xs">
-                      <MapPin className="w-4 h-4 text-amber-600" />
-                      <span>Geolocalización Santo Domingo</span>
-                    </div>
-                    <p className="text-[11px] text-text-sora/70 leading-relaxed">
-                      Google Maps y buscador de direcciones enfocado en República Dominicana, con navegación GPS hacia Waze en un toque.
+                      Ventas, platos, balances y notificaciones de WhatsApp desglosados con formato oficial en pesos dominicanos.
                     </p>
                   </div>
                 </div>
@@ -186,7 +184,7 @@ export function SystemUpdateNotice() {
                     Próximas Actualizaciones (Hoja de Ruta v1.3)
                   </span>
                   <span className="text-text-sora/50 font-medium text-[11px]">
-                    Próximamente
+                    En Desarrollo
                   </span>
                 </div>
 
@@ -235,11 +233,11 @@ export function SystemUpdateNotice() {
                 </div>
               </div>
 
-              {/* Nota final de retroalimentación */}
+              {/* Nota de sugerencias */}
               <div className="p-4 rounded-2xl bg-bg-sora border border-border-sora flex items-center space-x-3">
                 <Lightbulb className="w-5 h-5 text-amber-600 flex-shrink-0" />
                 <p className="text-[11px] text-text-sora/80">
-                  ¿Tienes una sugerencia o función específica que necesites para tu operación diaria? Solicítala al administrador para incluirla en la próxima versión.
+                  ¿Tienes alguna sugerencia adicional para la operación de Sora Cocina Casera? Comunícala al administrador para incluirla en la próxima versión.
                 </p>
               </div>
             </div>
@@ -247,7 +245,7 @@ export function SystemUpdateNotice() {
             {/* Pie del modal */}
             <div className="px-6 py-4 border-t border-border-sora bg-bg-sora/30 flex items-center justify-between flex-shrink-0">
               <span className="text-[11px] text-text-sora/50 font-mono">
-                Sora Web App • Build 2026.10
+                Sora Web App • Build v1.2.1
               </span>
               <button
                 onClick={() => setIsModalOpen(false)}
