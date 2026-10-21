@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { ROLE_INFO, UserRole, AppPermission } from '@/types/database.types';
 import { SystemUpdateNotice } from './SystemUpdateNotice';
@@ -22,6 +22,7 @@ import {
   User as UserIcon,
   Shield,
   UserCog,
+  ShieldAlert,
 } from 'lucide-react';
 
 interface NavItem {
@@ -95,6 +96,7 @@ const NAVIGATION_ITEMS: NavItem[] = [
 export function AppNavigation({ children }: { children: React.ReactNode }) {
   const { user, profile, role, signOut, isLoading, hasPermission } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
 
@@ -104,6 +106,28 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
   );
 
   const currentRoleInfo = role ? ROLE_INFO[role] : null;
+
+  // 1. Bloqueo si la cuenta está desactivada
+  const isDeactivated = Boolean(
+    profile && (profile.is_active === false || (profile as any).active === false)
+  );
+
+  // 2. Comprobar si la ruta actual está permitida para este usuario
+  const currentNavItem = NAVIGATION_ITEMS.find(
+    (item) => pathname === item.href || pathname.startsWith(item.href + '/')
+  );
+
+  const isRouteAllowed =
+    role === 'admin' ||
+    !currentNavItem ||
+    hasPermission(currentNavItem.permissionKey);
+
+  // Auto-redirección si el usuario intenta acceder a una ruta que no tiene permitida
+  useEffect(() => {
+    if (!isLoading && profile && !isDeactivated && !isRouteAllowed && visibleItems.length > 0) {
+      router.replace(visibleItems[0].href);
+    }
+  }, [isRouteAllowed, isDeactivated, isLoading, profile, visibleItems, router]);
 
   const handleSignOut = async () => {
     try {
@@ -328,12 +352,54 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* CONTENIDO PRINCIPAL */}
+      {/* CONTENIDO PRINCIPAL CON PROTECCIÓN EN TIEMPO REAL */}
       <main className="flex-1 flex flex-col min-w-0 overflow-y-auto relative">
         <SystemUpdateNotice />
         <KitchenAlertBanner />
         <div className="p-4 sm:p-6 md:p-8 max-w-7xl w-full mx-auto">
-          {children}
+          {isDeactivated ? (
+            <div className="py-20 text-center space-y-4 max-w-md mx-auto animate-in fade-in">
+              <div className="w-16 h-16 rounded-3xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto shadow-sm">
+                <ShieldAlert className="w-8 h-8" />
+              </div>
+              <h2 className="font-serif text-2xl font-bold text-text-sora">
+                Cuenta Desactivada
+              </h2>
+              <p className="text-xs text-text-sora/70 leading-relaxed">
+                Esta cuenta ha sido desactivada por el Administrador. No tienes acceso a los módulos ni a las funciones de Sora Cocina Casera.
+              </p>
+              <button
+                onClick={handleSignOut}
+                disabled={isSigningOut}
+                className="px-6 py-2.5 rounded-xl bg-primary-sora text-white text-xs font-semibold hover:bg-primary-hover shadow-sm transition-all"
+              >
+                Cerrar Sesión
+              </button>
+            </div>
+          ) : !isRouteAllowed ? (
+            <div className="py-20 text-center space-y-4 max-w-md mx-auto animate-in fade-in">
+              <div className="w-16 h-16 rounded-3xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto shadow-sm">
+                <ShieldAlert className="w-8 h-8" />
+              </div>
+              <h2 className="font-serif text-2xl font-bold text-text-sora">
+                Acceso No Autorizado
+              </h2>
+              <p className="text-xs text-text-sora/70 leading-relaxed">
+                No tienes permisos configurados para acceder a{' '}
+                <strong>{currentNavItem?.name || 'este módulo'}</strong>.
+              </p>
+              {visibleItems.length > 0 && (
+                <button
+                  onClick={() => router.replace(visibleItems[0].href)}
+                  className="px-6 py-2.5 rounded-xl bg-primary-sora text-white text-xs font-semibold hover:bg-primary-hover shadow-sm transition-all"
+                >
+                  Ir a {visibleItems[0].name}
+                </button>
+              )}
+            </div>
+          ) : (
+            children
+          )}
         </div>
       </main>
     </div>

@@ -44,13 +44,13 @@ export async function updateSession(request: NextRequest) {
     // Consultar el rol, estado activo y permisos en la tabla 'profiles'
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role, is_active, permissions')
+      .select('role, is_active, active, permissions')
       .eq('id', user.id)
       .maybeSingle();
 
     if (profile) {
       role = (profile.role as UserRole) || null;
-      if (profile.is_active === false) {
+      if (profile.is_active === false || (profile as any).active === false) {
         isActive = false;
       }
       if (Array.isArray(profile.permissions)) {

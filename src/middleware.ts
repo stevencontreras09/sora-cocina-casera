@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';
-import { ROLE_INFO, UserRole } from '@/types/database.types';
+import { ROLE_INFO, UserRole, DEFAULT_ROLE_PERMISSIONS, AppPermission } from '@/types/database.types';
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -54,12 +54,36 @@ export async function middleware(request: NextRequest) {
     usuarios: '/admin',
   };
 
-  // Construir rutas permitidas totales (por rol + por permisos granulares)
-  const allowedRoutePrefixes = new Set<string>(roleConfig.allowedRoutes);
+  // Construir rutas permitidas totales según permisos granulares o rol
+  const allowedRoutePrefixes = new Set<string>();
+
+  // Obtener permisos del usuario:
+  // 1) Desde base de datos (profiles.permissions)
+  // 2) De cookies de sesión sincronizadas
+  // 3) Fallback a los permisos predeterminados del rol
+  let userPerms = permissions;
+  if (!userPerms || userPerms.length === 0) {
+    const cleanId = user.id.toLowerCase().trim();
+    const cookiePerms =
+      request.cookies.get(`sora_perms_${cleanId}`)?.value ||
+      request.cookies.get(`sora_perms_${user.id}`)?.value ||
+      (user.email ? request.cookies.get(`sora_perms_${user.email.toLowerCase().trim()}`)?.value : null);
+    if (cookiePerms) {
+      try {
+        userPerms = JSON.parse(decodeURIComponent(cookiePerms));
+      } catch (_) {}
+    }
+  }
+
+  const effectivePermissions =
+    userPerms && Array.isArray(userPerms) && userPerms.length > 0
+      ? (userPerms as AppPermission[])
+      : DEFAULT_ROLE_PERMISSIONS[effectiveRole] || [];
+
   if (effectiveRole === 'admin') {
     Object.values(PERMISSION_ROUTES).forEach((r) => allowedRoutePrefixes.add(r));
-  } else if (permissions && Array.isArray(permissions)) {
-    permissions.forEach((perm) => {
+  } else {
+    effectivePermissions.forEach((perm) => {
       if (PERMISSION_ROUTES[perm]) {
         allowedRoutePrefixes.add(PERMISSION_ROUTES[perm]);
       }

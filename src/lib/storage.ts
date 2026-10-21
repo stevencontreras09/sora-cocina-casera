@@ -275,10 +275,22 @@ export function saveStoredUsers(users: Profile[]) {
     // También guardar permisos individuales para búsqueda rápida por ID o email
     users.forEach((u) => {
       if (u.id && u.permissions) {
-        localStorage.setItem(`sora_perms_${u.id}`, JSON.stringify(u.permissions));
+        const cleanId = u.id.toLowerCase().trim();
+        const jsonPerms = JSON.stringify(u.permissions);
+        localStorage.setItem(`sora_perms_${cleanId}`, jsonPerms);
+        localStorage.setItem(`sora_perms_${u.id}`, jsonPerms);
+        try {
+          document.cookie = `sora_perms_${cleanId}=${encodeURIComponent(jsonPerms)}; path=/; max-age=2592000; SameSite=Lax`;
+          document.cookie = `sora_perms_${u.id}=${encodeURIComponent(jsonPerms)}; path=/; max-age=2592000; SameSite=Lax`;
+        } catch (_) {}
       }
       if (u.email && u.permissions) {
-        localStorage.setItem(`sora_perms_${u.email.toLowerCase()}`, JSON.stringify(u.permissions));
+        const cleanEmail = u.email.toLowerCase().trim();
+        const jsonPerms = JSON.stringify(u.permissions);
+        localStorage.setItem(`sora_perms_${cleanEmail}`, jsonPerms);
+        try {
+          document.cookie = `sora_perms_${cleanEmail}=${encodeURIComponent(jsonPerms)}; path=/; max-age=2592000; SameSite=Lax`;
+        } catch (_) {}
       }
     });
     notifyAutoSave('Usuarios y Permisos');
@@ -290,8 +302,8 @@ export function saveStoredUsers(users: Profile[]) {
 export function getStoredUserPermissions(userIdOrEmail: string): string[] | null {
   if (typeof window === 'undefined' || !userIdOrEmail) return null;
   try {
-    const key = `sora_perms_${userIdOrEmail.toLowerCase()}`;
-    const raw = localStorage.getItem(key);
+    const cleanKey = `sora_perms_${userIdOrEmail.toLowerCase().trim()}`;
+    const raw = localStorage.getItem(cleanKey) || localStorage.getItem(`sora_perms_${userIdOrEmail}`);
     return raw ? JSON.parse(raw) : null;
   } catch (e) {
     return null;

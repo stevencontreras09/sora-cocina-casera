@@ -3,7 +3,8 @@
 import React, { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { ROLE_INFO, UserRole } from '@/types/database.types';
+import { ROLE_INFO, UserRole, DEFAULT_ROLE_PERMISSIONS } from '@/types/database.types';
+import { getStoredUserPermissions } from '@/lib/storage';
 import {
   ChefHat,
   Mail,
@@ -60,24 +61,79 @@ function LoginForm() {
       }
 
       if (data.user) {
-        setSuccessMessage('¡Bienvenido a Sora! Verificando credenciales...');
-
-        // Consultar el rol en la tabla 'profiles'
+        // Consultar el rol y permisos en la tabla 'profiles'
         const { data: profile } = await supabase
           .from('profiles')
-          .select('role')
+          .select('role, permissions, is_active, active')
           .eq('id', data.user.id)
           .maybeSingle();
+
+        // 1. Bloqueo estricto: Si la cuenta está inactiva, expulsar inmediatamente
+        if (profile && (profile.is_active === false || (profile as any).active === false)) {
+          await supabase.auth.signOut();
+          setErrorMessage('Tu cuenta ha sido desactivada por el Administrador. No tienes acceso al sistema.');
+          setIsLoading(false);
+          return;
+        }
+
+        setSuccessMessage('¡Bienvenido a Sora! Verificando credenciales...');
 
         const userRole: UserRole =
           (profile?.role as UserRole) ||
           (data.user.user_metadata?.role as UserRole) ||
           'admin';
 
-        const roleConfig = ROLE_INFO[userRole] || ROLE_INFO.admin;
-        const targetRoute = redirectParam || roleConfig.defaultRoute;
+        // Sincronizar permisos en cookies para que el middleware de Next.js los reconozca de inmediato
+        const localPerms =
+          getStoredUserPermissions(data.user.id) ||
+          (data.user.email ? getStoredUserPermissions(data.user.email) : null);
 
-        // Redireccionar al destino correspondiente según el rol
+        const effectivePerms =
+          profile?.permissions && Array.isArray(profile.permissions) && profile.permissions.length > 0
+            ? profile.permissions
+            : localPerms && localPerms.length > 0
+            ? localPerms
+            : DEFAULT_ROLE_PERMISSIONS[userRole] || [];
+
+        try {
+          const cleanId = data.user.id.toLowerCase().trim();
+          const jsonPerms = JSON.stringify(effectivePerms);
+          document.cookie = `sora_perms_${cleanId}=${encodeURIComponent(jsonPerms)}; path=/; max-age=2592000; SameSite=Lax`;
+          document.cookie = `sora_perms_${data.user.id}=${encodeURIComponent(jsonPerms)}; path=/; max-age=2592000; SameSite=Lax`;
+          if (data.user.email) {
+            document.cookie = `sora_perms_${data.user.email.toLowerCase().trim()}=${encodeURIComponent(jsonPerms)}; path=/; max-age=2592000; SameSite=Lax`;
+          }
+        } catch (_) {}
+
+        const roleConfig = ROLE_INFO[userRole] || ROLE_INFO.admin;
+
+        // 2. Determinar destino estrictamente según los permisos autorizados
+        const PERMISSION_ROUTES: Record<string, string> = {
+          dashboard: '/dashboard',
+          ventas: '/ventas',
+          clientes: '/clientes',
+          gastos: '/gastos',
+          delivery: '/delivery',
+          reportes: '/reportes',
+          usuarios: '/admin/usuarios',
+        };
+
+        let targetRoute = redirectParam;
+        if (userRole === 'admin') {
+          if (!targetRoute) targetRoute = '/dashboard';
+        } else {
+          // Rutas permitidas para este usuario
+          const allowedRoutes = effectivePerms
+            .map((p) => PERMISSION_ROUTES[p])
+            .filter(Boolean);
+
+          // Si intentó ir a una ruta no autorizada o no especificó ruta, enviarlo a su primera función permitida
+          if (!targetRoute || !allowedRoutes.some((ar) => targetRoute?.startsWith(ar))) {
+            targetRoute = allowedRoutes[0] || roleConfig.defaultRoute;
+          }
+        }
+
+        // Redireccionar al destino correspondiente según el rol y permisos
         router.push(targetRoute);
         router.refresh();
       }

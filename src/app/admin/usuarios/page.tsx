@@ -43,7 +43,7 @@ import {
 } from 'lucide-react';
 
 export default function GestionUsuariosPage() {
-  const { user, profile: currentProfile, role } = useAuth();
+  const { user, profile: currentProfile, role, refreshProfile } = useAuth();
   const supabase = useMemo(() => createClient(), []);
 
   const [users, setUsers] = useState<Profile[]>([]);
@@ -98,26 +98,40 @@ export default function GestionUsuariosPage() {
         .order('created_at', { ascending: true });
 
       if (!error && data && data.length > 0) {
-        // Combinar usuarios de Supabase preservando roles o permisos configurados localmente
+        // Supabase es la fuente de verdad para perfiles sincronizados
         const freshCached = getStoredUsers();
-        const merged = (data as Profile[]).map((sp) => {
+        const merged = (data as any[]).map((sp) => {
           const local = freshCached.find(
             (lp) => lp.id === sp.id || (lp.email && sp.email && lp.email.toLowerCase() === sp.email.toLowerCase())
           );
+
+          // Si Supabase ya tiene permisos configurados, usarlos prioritariamente
+          const permissions =
+            Array.isArray(sp.permissions) && sp.permissions.length > 0
+              ? (sp.permissions as AppPermission[])
+              : local?.permissions && local.permissions.length > 0
+              ? local.permissions
+              : DEFAULT_ROLE_PERMISSIONS[sp.role as UserRole] || [];
+
           return {
-            ...sp,
-            permissions:
-              local?.permissions && local.permissions.length > 0
-                ? local.permissions
-                : (sp.permissions && sp.permissions.length > 0
-                  ? sp.permissions
-                  : DEFAULT_ROLE_PERMISSIONS[sp.role] || []),
-            role: local?.role || sp.role,
-            is_active: local?.is_active !== undefined ? local.is_active : sp.is_active,
-          };
+            id: sp.id,
+            email: sp.email,
+            full_name: sp.full_name,
+            role: (sp.role as UserRole) || local?.role || 'delivery',
+            is_active:
+              sp.is_active !== undefined
+                ? sp.is_active
+                : sp.active !== undefined
+                ? sp.active
+                : local?.is_active !== undefined
+                ? local.is_active
+                : true,
+            permissions,
+            created_at: sp.created_at,
+          } as Profile;
         });
 
-        // Incluir usuarios que solo existen en local
+        // Incluir usuarios que solo existen en local (creados sin conexión)
         const localOnly = freshCached.filter(
           (lp) => !data.some(
             (sp) => sp.id === lp.id || (lp.email && sp.email && lp.email.toLowerCase() === sp.email.toLowerCase())
@@ -204,51 +218,100 @@ export default function GestionUsuariosPage() {
 
     setIsSavingEdit(true);
 
+    const updatedUserObj: Profile = {
+      ...editingUser,
+      role: editRole,
+      is_active: editIsActive,
+      permissions: editPermissions,
+    };
+
     // 1. Persistir inmediatamente en memoria y en localStorage
     const updatedUsers = users.map((u) =>
-      u.id === editingUser.id
-        ? {
-            ...u,
-            role: editRole,
-            is_active: editIsActive,
-            permissions: editPermissions,
-          }
-        : u
+      u.id === editingUser.id ? updatedUserObj : u
     );
     setUsers(updatedUsers);
     saveStoredUsers(updatedUsers);
 
-    // 2. Intentar actualizar en Supabase si es un UUID válido
+    // 2. Persistir en Supabase usando API de administración segura (evita bloqueos de RLS auth.uid() = id)
+    let syncError: string | null = null;
     try {
       if (isValidUuid(editingUser.id)) {
-        const updateData: any = {
-          role: editRole,
-          is_active: editIsActive,
-          permissions: editPermissions,
-          updated_at: new Date().toISOString(),
-        };
+        const res = await fetch('/api/admin/users', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: editingUser.id,
+            role: editRole,
+            is_active: editIsActive,
+            permissions: editPermissions,
+            full_name: editingUser.full_name,
+            email: editingUser.email,
+          }),
+        });
 
-        const { error } = await supabase
-          .from('profiles')
-          .update(updateData)
-          .eq('id', editingUser.id);
-
-        if (error && error.message.includes('permissions')) {
-          delete updateData.permissions;
-          await supabase
-            .from('profiles')
-            .update(updateData)
-            .eq('id', editingUser.id);
+        const resData = await res.json();
+        if (!res.ok) {
+          syncError = resData.error || 'Error en servidor de administración';
+          console.warn('API /api/admin/users respondió error:', resData);
+        } else if (resData.profile) {
+          // Confirmar con el perfil devuelto por la base de datos
+          const sp = resData.profile;
+          const syncedUsers = users.map((u) =>
+            u.id === sp.id
+              ? {
+                  ...u,
+                  role: sp.role,
+                  is_active: sp.is_active !== undefined ? sp.is_active : sp.active,
+                  permissions: sp.permissions,
+                }
+              : u
+          );
+          setUsers(syncedUsers);
+          saveStoredUsers(syncedUsers);
         }
       }
-    } catch (err) {
-      console.warn('Actualización local de perfil persistida');
+    } catch (err: any) {
+      console.warn('Error al llamar /api/admin/users, intentando vía cliente:', err);
+      // Fallback a cliente
+      try {
+        const { error: clientErr } = await supabase
+          .from('profiles')
+          .update({
+            role: editRole,
+            is_active: editIsActive,
+            active: editIsActive,
+            permissions: editPermissions,
+          })
+          .eq('id', editingUser.id);
+        if (clientErr) syncError = clientErr.message;
+      } catch (fallbackErr: any) {
+        syncError = fallbackErr?.message || 'Error de conexión';
+      }
+    }
+
+    // 3. Si se editó la cuenta de la sesión activa, refrescar inmediatamente AuthContext
+    if (isSelf) {
+      await refreshProfile();
+    }
+
+    // 4. Notificar globalmente para actualizar la barra de navegación en tiempo real
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('sora-user-updated', { detail: { id: editingUser.id } })
+      );
     }
 
     setIsSavingEdit(false);
     setEditingUser(null);
-    notifyAutoSave('Usuarios');
-    showFeedback(`Accesos y permisos actualizados para ${editingUser.full_name || editingUser.email}`);
+    notifyAutoSave('Usuarios y Permisos');
+
+    if (syncError) {
+      showFeedback(`Guardado localmente. Supabase reportó: ${syncError}`, 'error');
+    } else {
+      showFeedback(`Accesos y permisos actualizados para ${editingUser.full_name || editingUser.email}`);
+    }
   };
 
   // 3. Confirmar y Eliminar Usuario
@@ -264,16 +327,24 @@ export default function GestionUsuariosPage() {
 
     setIsDeletingUser(true);
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', userToDelete.id);
-
-      if (error) {
-        console.warn('Eliminación en Supabase profiles:', error.message);
+      const res = await fetch(`/api/admin/users?userId=${encodeURIComponent(userToDelete.id)}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        // Fallback directo a supabase
+        const { error } = await supabase
+          .from('profiles')
+          .delete()
+          .eq('id', userToDelete.id);
+        if (error) {
+          console.warn('Eliminación en Supabase profiles:', error.message);
+        }
       }
     } catch (err) {
       console.warn('Error al eliminar usuario en BD', err);
+      try {
+        await supabase.from('profiles').delete().eq('id', userToDelete.id);
+      } catch (_) {}
     }
 
     const updatedUsers = users.filter((u) => u.id !== userToDelete.id);
@@ -319,6 +390,12 @@ export default function GestionUsuariosPage() {
         },
       });
 
+      if (error) {
+        showFeedback(`Error en registro: ${error.message}`, 'error');
+        setIsSubmittingInvite(false);
+        return;
+      }
+
       if (data?.user) {
         newProfile.id = data.user.id;
       }
@@ -331,20 +408,20 @@ export default function GestionUsuariosPage() {
           full_name: newProfile.full_name,
           role: inviteRole,
           is_active: true,
+          active: true,
           permissions: invitePermissions,
         };
 
         const { error: profileError } = await supabase
           .from('profiles')
-          .upsert([profileData]);
+          .upsert(profileData);
 
-        if (profileError && profileError.message.includes('permissions')) {
-          delete profileData.permissions;
-          await supabase.from('profiles').upsert([profileData]);
+        if (profileError) {
+          console.warn('Aviso al guardar perfil en profiles:', profileError.message);
         }
       }
-    } catch (err) {
-      console.warn('Usuario registrado en estado local');
+    } catch (err: any) {
+      console.warn('Usuario registrado en estado local', err);
     }
 
     const updatedUsersList = [...users, newProfile];

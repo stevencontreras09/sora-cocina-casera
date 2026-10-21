@@ -36,11 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchProfile = async (currentUser: User) => {
     try {
-      // Revisar si el administrador configuró permisos personalizados para este usuario en almacenamiento local
-      const localPerms =
-        getStoredUserPermissions(currentUser.id) ||
-        (currentUser.email ? getStoredUserPermissions(currentUser.email) : null);
-
+      // Consultar perfil directamente en Supabase
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -51,21 +47,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.warn('Advertencia al consultar perfil:', error.message);
       }
 
+      // Permisos cacheados localmente como respaldo
+      const localPerms =
+        getStoredUserPermissions(currentUser.id) ||
+        (currentUser.email ? getStoredUserPermissions(currentUser.email) : null);
+
       if (data) {
         const loadedProfile = data as Profile;
-        if (localPerms && localPerms.length > 0) {
-          loadedProfile.permissions = localPerms as AppPermission[];
+
+        // Bloqueo de seguridad: si la cuenta está inactiva, forzar cierre de sesión inmediato
+        if (loadedProfile.is_active === false || (loadedProfile as any).active === false) {
+          await supabase.auth.signOut();
+          setUser(null);
+          setProfile(null);
+          if (typeof window !== 'undefined') {
+            window.location.href = '/login?error=deactivated';
+          }
+          return;
         }
+        
+        // Prioridad 1: Permisos explícitos en Supabase
+        if (loadedProfile.permissions && Array.isArray(loadedProfile.permissions) && loadedProfile.permissions.length > 0) {
+          // Mantener sincronizado el almacenamiento local y cookies con Supabase
+          try {
+            const jsonPerms = JSON.stringify(loadedProfile.permissions);
+            const cleanId = currentUser.id.toLowerCase().trim();
+            localStorage.setItem(`sora_perms_${cleanId}`, jsonPerms);
+            document.cookie = `sora_perms_${cleanId}=${encodeURIComponent(jsonPerms)}; path=/; max-age=2592000; SameSite=Lax`;
+            if (currentUser.email) {
+              const cleanEmail = currentUser.email.toLowerCase().trim();
+              localStorage.setItem(`sora_perms_${cleanEmail}`, jsonPerms);
+              document.cookie = `sora_perms_${cleanEmail}=${encodeURIComponent(jsonPerms)}; path=/; max-age=2592000; SameSite=Lax`;
+            }
+          } catch (_) {}
+        } else if (localPerms && localPerms.length > 0) {
+          // Prioridad 2: Respaldo local
+          loadedProfile.permissions = localPerms as AppPermission[];
+        } else {
+          // Prioridad 3: Permisos predeterminados del rol
+          loadedProfile.permissions = DEFAULT_ROLE_PERMISSIONS[loadedProfile.role] || [];
+        }
+
         setProfile(loadedProfile);
       } else {
         // Si aún no existe fila en 'profiles', creamos un estado provisional con metadata
         const fallbackRole = (currentUser.user_metadata?.role as UserRole) || 'admin';
+        const effectivePerms =
+          (localPerms as AppPermission[]) ||
+          DEFAULT_ROLE_PERMISSIONS[fallbackRole] ||
+          [];
+
         setProfile({
           id: currentUser.id,
           email: currentUser.email || null,
           full_name: currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || 'Usuario Sora',
           role: fallbackRole,
-          permissions: (localPerms as AppPermission[]) || undefined,
+          permissions: effectivePerms,
         });
       }
     } catch (err) {
@@ -75,6 +112,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
+
+    let profileChannel: any = null;
+
+    const setupRealtimeSubscription = (targetUser: User) => {
+      if (profileChannel) {
+        supabase.removeChannel(profileChannel);
+      }
+      profileChannel = supabase
+        .channel(`public:profiles:${targetUser.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'profiles',
+            filter: `id=eq.${targetUser.id}`,
+          },
+          () => {
+            if (mounted) {
+              fetchProfile(targetUser);
+            }
+          }
+        )
+        .subscribe();
+    };
 
     async function initAuth() {
       try {
@@ -87,6 +149,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (session?.user) {
           setUser(session.user);
           await fetchProfile(session.user);
+          setupRealtimeSubscription(session.user);
         } else {
           setUser(null);
           setProfile(null);
@@ -108,9 +171,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session?.user) {
         setUser(session.user);
         await fetchProfile(session.user);
+        setupRealtimeSubscription(session.user);
       } else {
         setUser(null);
         setProfile(null);
+        if (profileChannel) {
+          supabase.removeChannel(profileChannel);
+          profileChannel = null;
+        }
       }
 
       setIsLoading(false);
@@ -121,9 +189,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
+    const handleUserUpdate = () => {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user && mounted) {
+          fetchProfile(session.user);
+        }
+      });
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        handleUserUpdate();
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('sora-user-updated', handleUserUpdate);
+      window.addEventListener('storage', handleUserUpdate);
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+
     return () => {
       mounted = false;
       subscription.unsubscribe();
+      if (profileChannel) {
+        supabase.removeChannel(profileChannel);
+      }
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('sora-user-updated', handleUserUpdate);
+        window.removeEventListener('storage', handleUserUpdate);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
     };
   }, [supabase, router]);
 
