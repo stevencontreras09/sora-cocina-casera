@@ -6,6 +6,8 @@
   :root {
     color-scheme: light dark;
     --bg-sora: #FBF6F0;
+    --card-sora: #FFFFFF;
+    --card-sora-muted: #F5EDE4;
     --primary-sora: #C2665B;
     --primary-hover: #A85248;
     --text-sora: #1E1815;
@@ -14,11 +16,14 @@
 
   .dark {
     color-scheme: dark;
-    --bg-sora: #161311;
-    --primary-sora: #D9776C;
-    --primary-hover: #E28B81;
-    --text-sora: #F7EFE9;
-    --border-sora: #38302B;
+    /* Midnight Obsidian & Slate Charcoal - Moderno, Lujoso y de Alto Contraste */
+    --bg-sora: #0B0E14;
+    --card-sora: #141824;
+    --card-sora-muted: #1A2030;
+    --primary-sora: #E85D45;
+    --primary-hover: #F16F58;
+    --text-sora: #F8FAFC;
+    --border-sora: #232B3E;
   }
 
   body {
@@ -47,108 +52,172 @@
 
   /* Scrollbar en Modo Oscuro */
   .dark ::-webkit-scrollbar-track {
-    background: #161311;
+    background: #0B0E14;
   }
   .dark ::-webkit-scrollbar-thumb {
-    background: #38302B;
+    background: #232B3E;
   }
   .dark ::-webkit-scrollbar-thumb:hover {
-    background: #D9776C;
+    background: #E85D45;
   }
 
-  /* ==================== VISTA NOCTURNA / DARK MODE OVERRIDES ==================== */
+  /* ==================== VISTA NOCTURNA / DARK MODE PREMIUM ==================== */
   .dark body {
-    background-color: #161311 !important;
-    color: #F7EFE9 !important;
+    background-color: #0B0E14 !important;
+    color: #F8FAFC !important;
   }
 
-  /* Fondos generales en modo oscuro */
+  /* Superficies elevadas y tarjetas */
   .dark .bg-white {
-    background-color: #211C19 !important;
+    background-color: #141824 !important;
   }
 
   .dark .bg-white\/80,
   .dark .bg-white\/85,
   .dark .bg-white\/90,
   .dark .bg-white\/95 {
-    background-color: rgba(33, 28, 25, 0.94) !important;
+    background-color: rgba(20, 24, 36, 0.94) !important;
   }
 
+  .dark .bg-white\/50,
+  .dark .bg-white\/60,
+  .dark .bg-white\/70 {
+    background-color: rgba(20, 24, 36, 0.75) !important;
+  }
+
+  /* Fondos de pantalla principal */
   .dark .bg-bg-sora {
-    background-color: #161311 !important;
+    background-color: #0B0E14 !important;
+  }
+
+  .dark .bg-bg-sora\/80,
+  .dark .bg-bg-sora\/90,
+  .dark .bg-bg-sora\/95 {
+    background-color: rgba(11, 14, 20, 0.95) !important;
   }
 
   .dark .bg-bg-sora\/30,
   .dark .bg-bg-sora\/40,
-  .dark .bg-bg-sora\/50,
-  .dark .bg-bg-sora\/80,
-  .dark .bg-bg-sora\/95 {
-    background-color: rgba(22, 19, 17, 0.88) !important;
+  .dark .bg-bg-sora\/50 {
+    background-color: rgba(26, 32, 48, 0.6) !important;
   }
 
-  /* Textos en modo oscuro */
+  /* Textos nítidos con jerarquía legible */
   .dark .text-text-sora {
-    color: #F7EFE9 !important;
+    color: #F8FAFC !important;
   }
 
   .dark .text-text-sora\/80 {
-    color: rgba(247, 239, 233, 0.85) !important;
+    color: rgba(248, 250, 252, 0.88) !important;
   }
 
-  .dark .text-text-sora\/70 {
-    color: rgba(247, 239, 233, 0.75) !important;
-  }
-
+  .dark .text-text-sora\/70,
   .dark .text-text-sora\/60 {
-    color: rgba(247, 239, 233, 0.65) !important;
+    color: #94A3B8 !important;
   }
 
   .dark .text-text-sora\/50,
   .dark .text-text-sora\/40,
   .dark .text-text-sora\/30 {
-    color: rgba(247, 239, 233, 0.45) !important;
+    color: #64748B !important;
   }
 
-  /* Bordes en modo oscuro */
+  /* Bordes estructurales modernos */
   .dark .border-border-sora,
   .dark .border-border-sora\/30,
   .dark .border-border-sora\/40,
   .dark .border-border-sora\/60,
   .dark .border-border-sora\/80 {
-    border-color: #38302B !important;
+    border-color: #232B3E !important;
   }
 
   .dark .divide-border-sora\/40 > :not([hidden]) ~ :not([hidden]),
+  .dark .divide-border-sora\/60 > :not([hidden]) ~ :not([hidden]),
   .dark .divide-border-sora > :not([hidden]) ~ :not([hidden]) {
-    border-color: #38302B !important;
+    border-color: #232B3E !important;
   }
 
-  /* Formularios y controles nativos en modo oscuro */
+  /* Formularios y controles nativos */
   .dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
   .dark select,
   .dark textarea {
-    background-color: #28221F !important;
-    color: #F7EFE9 !important;
-    border-color: #3E3530 !important;
+    background-color: #161B28 !important;
+    color: #F8FAFC !important;
+    border-color: #2A334A !important;
   }
 
   .dark input::placeholder,
   .dark textarea::placeholder {
-    color: rgba(247, 239, 233, 0.4) !important;
+    color: #64748B !important;
   }
 
   .dark select option {
-    background-color: #211C19 !important;
-    color: #F7EFE9 !important;
+    background-color: #141824 !important;
+    color: #F8FAFC !important;
+  }
+
+  /* Insignias e iconos pastel convertidos en acentos luminosos en Dark Mode */
+  .dark .bg-emerald-50 {
+    background-color: rgba(16, 185, 129, 0.14) !important;
+    border-color: rgba(16, 185, 129, 0.28) !important;
+  }
+  .dark .text-emerald-600,
+  .dark .text-emerald-700,
+  .dark .text-emerald-800 {
+    color: #34D399 !important;
+  }
+
+  .dark .bg-amber-50,
+  .dark .bg-amber-100 {
+    background-color: rgba(245, 158, 11, 0.14) !important;
+    border-color: rgba(245, 158, 11, 0.28) !important;
+  }
+  .dark .text-amber-600,
+  .dark .text-amber-700,
+  .dark .text-amber-800 {
+    color: #FBBF24 !important;
+  }
+
+  .dark .bg-blue-50,
+  .dark .bg-blue-100 {
+    background-color: rgba(56, 189, 248, 0.14) !important;
+    border-color: rgba(56, 189, 248, 0.28) !important;
+  }
+  .dark .text-blue-600,
+  .dark .text-blue-700,
+  .dark .text-blue-800 {
+    color: #38BDF8 !important;
+  }
+
+  .dark .bg-rose-50,
+  .dark .bg-rose-100 {
+    background-color: rgba(244, 63, 94, 0.14) !important;
+    border-color: rgba(244, 63, 94, 0.28) !important;
+  }
+  .dark .text-rose-600,
+  .dark .text-rose-700,
+  .dark .text-rose-800 {
+    color: #FB7185 !important;
+  }
+
+  .dark .bg-orange-50,
+  .dark .bg-orange-100 {
+    background-color: rgba(249, 115, 22, 0.14) !important;
+    border-color: rgba(249, 115, 22, 0.28) !important;
+  }
+  .dark .text-orange-600,
+  .dark .text-orange-700,
+  .dark .text-orange-800 {
+    color: #FB923C !important;
   }
 
   /* Paneles, modales y sombras */
   .dark .shadow-sora {
-    box-shadow: 0 4px 24px -2px rgba(0, 0, 0, 0.4) !important;
+    box-shadow: 0 4px 24px -2px rgba(0, 0, 0, 0.5) !important;
   }
 
   .dark .shadow-sora-hover {
-    box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.55) !important;
+    box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.7) !important;
   }
 }
 

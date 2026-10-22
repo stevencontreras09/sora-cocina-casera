@@ -10,11 +10,13 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        "bg-sora": "#FBF6F0",       // Crema Vainilla
-        "primary-sora": "#C2665B",  // Terracota / Coral
-        "primary-hover": "#A85248",
-        "text-sora": "#1E1815",     // Espresso Oscuro
-        "border-sora": "#EADCCF",   // Lino Suave
+        "bg-sora": "var(--bg-sora, #FBF6F0)",
+        "card-sora": "var(--card-sora, #FFFFFF)",
+        "card-sora-muted": "var(--card-sora-muted, #F5EDE4)",
+        "primary-sora": "var(--primary-sora, #C2665B)",
+        "primary-hover": "var(--primary-hover, #A85248)",
+        "text-sora": "var(--text-sora, #1E1815)",
+        "border-sora": "var(--border-sora, #EADCCF)",
         whatsapp: "#25D366",
       },
       fontFamily: {

@@ -30,6 +30,40 @@ interface DashboardStats {
   todayExpenses: number;
 }
 
+function formatOrderDate(dateStr?: string) {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('es-DO', {
+      day: 'numeric',
+      month: 'short',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
+function getStatusBadgeStyle(status?: string) {
+  const s = (status || '').toLowerCase();
+  if (s === 'entregado') {
+    return 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30';
+  }
+  if (s === 'en camino') {
+    return 'bg-blue-50 dark:bg-sky-500/15 text-blue-700 dark:text-sky-300 border-blue-200 dark:border-sky-500/30';
+  }
+  if (s === 'en preparación' || s === 'en horno') {
+    return 'bg-orange-50 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-500/30';
+  }
+  if (s === 'cancelado') {
+    return 'bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/30';
+  }
+  return 'bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30';
+}
+
 export default function DashboardPage() {
   const { profile } = useAuth();
   const supabase = useMemo(() => createClient(), []);
@@ -215,58 +249,58 @@ export default function DashboardPage() {
 
         {/* Tarjetas de Métricas Clave (DOP / RD$) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-          <div className="p-5 rounded-2xl sm:rounded-3xl bg-white/80 border border-border-sora shadow-sora">
+          <div className="p-5 rounded-2xl sm:rounded-3xl bg-white/80 dark:bg-[#141824] border border-border-sora dark:border-[#232B3E] shadow-sora">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-text-sora/60">Ventas Registradas</span>
-              <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <span className="text-xs font-medium text-text-sora/60 dark:text-slate-400">Ventas Registradas</span>
+              <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-500/30 flex items-center justify-center shadow-xs">
                 <DollarSign className="w-5 h-5" />
               </div>
             </div>
             <div className="mt-3">
-              <p className="text-2xl font-serif font-bold text-text-sora">
+              <p className="text-2xl font-serif font-bold text-text-sora dark:text-white">
                 {formatCurrency(stats.dailySales)}
               </p>
-              <p className="text-[11px] text-text-sora/50 mt-1">
+              <p className="text-[11px] text-text-sora/50 dark:text-slate-400 mt-1">
                 Moneda oficial en Pesos Dominicanos
               </p>
             </div>
           </div>
 
-          <div className="p-5 rounded-2xl sm:rounded-3xl bg-white/80 border border-border-sora shadow-sora">
+          <div className="p-5 rounded-2xl sm:rounded-3xl bg-white/80 dark:bg-[#141824] border border-border-sora dark:border-[#232B3E] shadow-sora">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-text-sora/60">Pedidos Realizados</span>
-              <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+              <span className="text-xs font-medium text-text-sora/60 dark:text-slate-400">Pedidos Realizados</span>
+              <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-200/60 dark:border-amber-500/30 flex items-center justify-center shadow-xs">
                 <ShoppingBag className="w-5 h-5" />
               </div>
             </div>
             <div className="mt-3">
-              <p className="text-2xl font-serif font-bold text-text-sora">{stats.ordersCount}</p>
-              <p className="text-[11px] text-text-sora/50 mt-1">
+              <p className="text-2xl font-serif font-bold text-text-sora dark:text-white">{stats.ordersCount}</p>
+              <p className="text-[11px] text-text-sora/50 dark:text-slate-400 mt-1">
                 Total acumulado en el sistema
               </p>
             </div>
           </div>
 
-          <div className="p-5 rounded-2xl sm:rounded-3xl bg-white/80 border border-border-sora shadow-sora">
+          <div className="p-5 rounded-2xl sm:rounded-3xl bg-white/80 dark:bg-[#141824] border border-border-sora dark:border-[#232B3E] shadow-sora">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-text-sora/60">Deliveries en Ruta</span>
-              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+              <span className="text-xs font-medium text-text-sora/60 dark:text-slate-400">Deliveries en Ruta</span>
+              <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-sky-500/15 text-blue-600 dark:text-sky-400 border border-blue-200/60 dark:border-sky-500/30 flex items-center justify-center shadow-xs">
                 <Truck className="w-5 h-5" />
               </div>
             </div>
             <div className="mt-3">
-              <p className="text-2xl font-serif font-bold text-text-sora">{stats.activeDeliveries}</p>
-              <p className="text-[11px] text-blue-600 flex items-center mt-1 font-medium">
+              <p className="text-2xl font-serif font-bold text-text-sora dark:text-white">{stats.activeDeliveries}</p>
+              <p className="text-[11px] text-blue-600 dark:text-sky-400 flex items-center mt-1 font-medium">
                 <Clock className="w-3 h-3 mr-1" />
                 Despachos pendientes o en ruta
               </p>
             </div>
           </div>
 
-          <div className="p-5 rounded-2xl sm:rounded-3xl bg-white/80 border border-border-sora shadow-sora">
+          <div className="p-5 rounded-2xl sm:rounded-3xl bg-white/80 dark:bg-[#141824] border border-border-sora dark:border-[#232B3E] shadow-sora">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-text-sora/60">Gastos Registrados</span>
-              <div className="w-9 h-9 rounded-xl bg-rose-50 text-primary-sora flex items-center justify-center">
+              <span className="text-xs font-medium text-text-sora/60 dark:text-slate-400">Gastos Registrados</span>
+              <div className="w-10 h-10 rounded-2xl bg-rose-50 dark:bg-rose-500/15 text-primary-sora dark:text-rose-400 border border-rose-200/60 dark:border-rose-500/30 flex items-center justify-center shadow-xs">
                 <Receipt className="w-5 h-5" />
               </div>
             </div>
@@ -274,7 +308,7 @@ export default function DashboardPage() {
               <p className="text-2xl font-serif font-bold text-primary-sora">
                 {formatCurrency(stats.todayExpenses)}
               </p>
-              <p className="text-[11px] text-text-sora/50 mt-1">
+              <p className="text-[11px] text-text-sora/50 dark:text-slate-400 mt-1">
                 Egresos operativos en DOP
               </p>
             </div>
@@ -283,13 +317,13 @@ export default function DashboardPage() {
 
         {/* Sección Principal: Pedidos Recientes */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 p-5 sm:p-6 rounded-3xl bg-white/80 border border-border-sora shadow-sora">
-            <div className="flex items-center justify-between pb-4 border-b border-border-sora">
+          <div className="lg:col-span-2 p-5 sm:p-6 rounded-3xl bg-white/80 dark:bg-[#141824] border border-border-sora dark:border-[#232B3E] shadow-sora">
+            <div className="flex items-center justify-between pb-4 border-b border-border-sora dark:border-[#232B3E]">
               <div>
-                <h2 className="font-serif text-lg font-bold text-text-sora">
+                <h2 className="font-serif text-lg font-bold text-text-sora dark:text-white">
                   Flujo de Cocina y Pedidos
                 </h2>
-                <p className="text-xs text-text-sora/60">Últimos pedidos registrados</p>
+                <p className="text-xs text-text-sora/60 dark:text-slate-400">Últimos pedidos registrados</p>
               </div>
               <Link
                 href="/ventas"
@@ -301,30 +335,34 @@ export default function DashboardPage() {
             </div>
 
             {recentOrders.length > 0 ? (
-              <div className="divide-y divide-border-sora/60">
+              <div className="divide-y divide-border-sora/60 dark:divide-[#232B3E]">
                 {recentOrders.map((order) => (
                   <div
                     key={order.id}
-                    className="py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
+                    className="py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] px-2 rounded-2xl transition-colors"
                   >
                     <div className="space-y-1">
-                      <div className="flex items-center space-x-2">
-                        <span className="font-mono text-xs font-semibold text-primary-sora bg-bg-sora px-2 py-0.5 rounded-md border border-border-sora">
+                      <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                        <span className="font-mono text-xs font-bold text-primary-sora bg-primary-sora/10 dark:bg-primary-sora/20 px-2.5 py-0.5 rounded-lg border border-primary-sora/20">
                           {order.order_number || `#${order.id.slice(0, 6)}`}
                         </span>
-                        <span className="text-xs font-bold text-text-sora">
+                        <span className="text-xs font-bold text-text-sora dark:text-white">
                           {order.client_name}
                         </span>
-                        <span className="text-[11px] text-text-sora/40">{order.created_at}</span>
+                        {order.created_at && (
+                          <span className="text-[11px] text-text-sora/50 dark:text-slate-400">
+                            • {formatOrderDate(order.created_at)}
+                          </span>
+                        )}
                       </div>
-                      <p className="text-xs text-text-sora/70">{order.address}</p>
+                      <p className="text-xs text-text-sora/70 dark:text-slate-300">{order.address}</p>
                     </div>
 
-                    <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-1">
-                      <span className="font-serif font-bold text-text-sora text-sm">
+                    <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-1.5">
+                      <span className="font-serif font-bold text-text-sora dark:text-white text-sm">
                         {formatCurrency(parseFloat(order.total) || 0)}
                       </span>
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 uppercase">
+                      <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border uppercase tracking-wider ${getStatusBadgeStyle(order.status)}`}>
                         {order.status || 'Pendiente'}
                       </span>
                     </div>
@@ -353,57 +391,65 @@ export default function DashboardPage() {
 
           {/* Panel Lateral: Accesos Directos */}
           <div className="space-y-5">
-            <div className="p-5 sm:p-6 rounded-3xl bg-white/80 border border-border-sora shadow-sora space-y-3">
-              <h3 className="font-serif text-base font-bold text-text-sora">
+            <div className="p-5 sm:p-6 rounded-3xl bg-white/80 dark:bg-[#141824] border border-border-sora dark:border-[#232B3E] shadow-sora space-y-3">
+              <h3 className="font-serif text-base font-bold text-text-sora dark:text-white">
                 Accesos Directos
               </h3>
-              <p className="text-xs text-text-sora/70">
+              <p className="text-xs text-text-sora/70 dark:text-slate-400">
                 Navegación adaptada para iPad, PC y teléfonos móviles:
               </p>
 
               <div className="space-y-2 pt-1">
                 <Link
                   href="/ventas"
-                  className="p-3 rounded-2xl bg-bg-sora/80 border border-border-sora hover:bg-bg-sora flex items-center justify-between text-xs font-semibold text-text-sora transition-all"
+                  className="p-3 rounded-2xl bg-bg-sora/80 dark:bg-[#1A2030] border border-border-sora dark:border-[#2A344D] hover:bg-bg-sora dark:hover:bg-[#20273B] flex items-center justify-between text-xs font-semibold text-text-sora dark:text-slate-200 transition-all group"
                 >
                   <div className="flex items-center space-x-2.5">
-                    <ShoppingBag className="w-4 h-4 text-primary-sora" />
+                    <div className="w-7 h-7 rounded-lg bg-primary-sora/15 text-primary-sora flex items-center justify-center">
+                      <ShoppingBag className="w-3.5 h-3.5" />
+                    </div>
                     <span>Crear y Despachar Pedidos</span>
                   </div>
-                  <ArrowUpRight className="w-4 h-4 text-text-sora/40" />
+                  <ArrowUpRight className="w-4 h-4 text-text-sora/40 dark:text-slate-400 group-hover:text-primary-sora transition-colors" />
                 </Link>
 
                 <Link
                   href="/clientes"
-                  className="p-3 rounded-2xl bg-bg-sora/80 border border-border-sora hover:bg-bg-sora flex items-center justify-between text-xs font-semibold text-text-sora transition-all"
+                  className="p-3 rounded-2xl bg-bg-sora/80 dark:bg-[#1A2030] border border-border-sora dark:border-[#2A344D] hover:bg-bg-sora dark:hover:bg-[#20273B] flex items-center justify-between text-xs font-semibold text-text-sora dark:text-slate-200 transition-all group"
                 >
                   <div className="flex items-center space-x-2.5">
-                    <Users className="w-4 h-4 text-primary-sora" />
+                    <div className="w-7 h-7 rounded-lg bg-primary-sora/15 text-primary-sora flex items-center justify-center">
+                      <Users className="w-3.5 h-3.5" />
+                    </div>
                     <span>Clientes y Google Maps</span>
                   </div>
-                  <ArrowUpRight className="w-4 h-4 text-text-sora/40" />
+                  <ArrowUpRight className="w-4 h-4 text-text-sora/40 dark:text-slate-400 group-hover:text-primary-sora transition-colors" />
                 </Link>
 
                 <Link
                   href="/gastos"
-                  className="p-3 rounded-2xl bg-bg-sora/80 border border-border-sora hover:bg-bg-sora flex items-center justify-between text-xs font-semibold text-text-sora transition-all"
+                  className="p-3 rounded-2xl bg-bg-sora/80 dark:bg-[#1A2030] border border-border-sora dark:border-[#2A344D] hover:bg-bg-sora dark:hover:bg-[#20273B] flex items-center justify-between text-xs font-semibold text-text-sora dark:text-slate-200 transition-all group"
                 >
                   <div className="flex items-center space-x-2.5">
-                    <Receipt className="w-4 h-4 text-primary-sora" />
+                    <div className="w-7 h-7 rounded-lg bg-primary-sora/15 text-primary-sora flex items-center justify-center">
+                      <Receipt className="w-3.5 h-3.5" />
+                    </div>
                     <span>Control de Gastos y Egresos</span>
                   </div>
-                  <ArrowUpRight className="w-4 h-4 text-text-sora/40" />
+                  <ArrowUpRight className="w-4 h-4 text-text-sora/40 dark:text-slate-400 group-hover:text-primary-sora transition-colors" />
                 </Link>
 
                 <Link
                   href="/delivery"
-                  className="p-3 rounded-2xl bg-bg-sora/80 border border-border-sora hover:bg-bg-sora flex items-center justify-between text-xs font-semibold text-text-sora transition-all"
+                  className="p-3 rounded-2xl bg-bg-sora/80 dark:bg-[#1A2030] border border-border-sora dark:border-[#2A344D] hover:bg-bg-sora dark:hover:bg-[#20273B] flex items-center justify-between text-xs font-semibold text-text-sora dark:text-slate-200 transition-all group"
                 >
                   <div className="flex items-center space-x-2.5">
-                    <Truck className="w-4 h-4 text-primary-sora" />
+                    <div className="w-7 h-7 rounded-lg bg-primary-sora/15 text-primary-sora flex items-center justify-center">
+                      <Truck className="w-3.5 h-3.5" />
+                    </div>
                     <span>Vista Móvil de Reparto</span>
                   </div>
-                  <ArrowUpRight className="w-4 h-4 text-text-sora/40" />
+                  <ArrowUpRight className="w-4 h-4 text-text-sora/40 dark:text-slate-400 group-hover:text-primary-sora transition-colors" />
                 </Link>
               </div>
             </div>

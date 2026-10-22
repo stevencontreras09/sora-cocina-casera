@@ -178,7 +178,7 @@ export function KitchenAlertBanner() {
         <button
           onClick={handleTestChime}
           title="Probar sonido de campana de cocina"
-          className="px-2.5 py-1.5 rounded-xl border border-border-sora bg-white/90 hover:bg-bg-sora text-text-sora/80 text-[11px] font-semibold transition-all shadow-2xs hover:scale-102 flex items-center space-x-1"
+          className="px-2.5 py-1.5 rounded-xl border border-border-sora dark:border-[#232B3E] bg-white/90 dark:bg-[#141824] hover:bg-bg-sora dark:hover:bg-[#1C2234] text-text-sora/80 dark:text-slate-200 text-[11px] font-semibold transition-all shadow-2xs hover:scale-102 flex items-center space-x-1"
         >
           <Bell className="w-3.5 h-3.5 text-primary-sora" />
           <span>Probar Timbre</span>
@@ -189,8 +189,8 @@ export function KitchenAlertBanner() {
           title={soundActive ? 'Silenciar campana de pedidos' : 'Activar campana de pedidos'}
           className={`p-1.5 rounded-xl border transition-all shadow-2xs flex items-center space-x-1 text-[11px] font-semibold ${
             soundActive
-              ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
-              : 'border-border-sora bg-white text-text-sora/50'
+              ? 'border-emerald-300 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-400'
+              : 'border-border-sora dark:border-[#232B3E] bg-white dark:bg-[#141824] text-text-sora/50 dark:text-slate-400'
           }`}
         >
           {soundActive ? (

@@ -272,11 +272,14 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Botón cerrar sesión en móvil / tablet */}
-          <div className="pt-6 border-t border-border-sora max-w-lg mx-auto w-full text-center space-y-2.5">
+          <div className="pt-6 border-t border-border-sora dark:border-[#232B3E] max-w-lg mx-auto w-full text-center space-y-2.5">
             {/* Selector de Tema Móvil */}
-            <div className="flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-white/70 dark:bg-card-sora/80 border border-border-sora shadow-2xs">
-              <span className="text-xs font-semibold text-text-sora">Apariencia / Tema</span>
-              <ThemeToggle variant="segmented" />
+            <div className="p-3 rounded-2xl bg-white/70 dark:bg-[#121622] border border-border-sora dark:border-[#232B3E] shadow-2xs">
+              <div className="flex items-center justify-between mb-2 px-1">
+                <span className="text-xs font-bold text-text-sora dark:text-white">Apariencia / Tema</span>
+                <span className="text-[10px] text-text-sora/50 dark:text-slate-400">Personaliza la interfaz</span>
+              </div>
+              <ThemeToggle variant="segmented" className="w-full" />
             </div>
 
             {/* Botón Novedades y Versiones */}
@@ -285,9 +288,9 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
                 setMobileMenuOpen(false);
                 setChangelogModalOpen(true);
               }}
-              className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 dark:text-amber-300 font-bold text-xs border border-amber-500/25 active:scale-98 transition-all"
+              className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300 dark:hover:bg-amber-500/25 font-bold text-xs border border-amber-500/25 dark:border-amber-500/35 active:scale-98 transition-all"
             >
-              <Sparkles className="w-4 h-4 text-amber-500" />
+              <Sparkles className="w-4 h-4 text-amber-500 flex-shrink-0" />
               <span>Novedades v{CURRENT_APP_VERSION} (Historial)</span>
             </button>
 
@@ -297,7 +300,7 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
                 setMobileMenuOpen(false);
                 setInstallModalOpen(true);
               }}
-              className="w-full mb-1 flex items-center justify-center space-x-2 px-4 py-3 rounded-2xl bg-primary-sora/15 text-primary-sora hover:bg-primary-sora hover:text-white font-bold text-xs border border-primary-sora/30 active:scale-98 transition-all"
+              className="w-full mb-1 flex items-center justify-center space-x-2 px-4 py-3 rounded-2xl bg-primary-sora/15 text-primary-sora hover:bg-primary-sora hover:text-white dark:bg-primary-sora/20 dark:hover:bg-primary-sora dark:text-primary-sora dark:hover:text-white font-bold text-xs border border-primary-sora/30 dark:border-primary-sora/40 active:scale-98 transition-all"
             >
               <Download className="w-4 h-4 animate-bounce" />
               <span>📲 Instalar Sora en tu Teléfono</span>
@@ -306,7 +309,7 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
             <button
               onClick={handleSignOut}
               disabled={isSigningOut}
-              className="w-full flex items-center justify-center space-x-2 px-4 py-3.5 rounded-2xl text-primary-sora bg-primary-sora/10 hover:bg-primary-sora hover:text-white transition-all font-semibold text-sm disabled:opacity-50"
+              className="w-full flex items-center justify-center space-x-2 px-4 py-3.5 rounded-2xl text-primary-sora bg-primary-sora/10 hover:bg-primary-sora hover:text-white dark:bg-white/[0.04] dark:hover:bg-rose-500/20 dark:text-slate-200 dark:hover:text-rose-300 dark:border dark:border-white/10 dark:hover:border-rose-500/30 transition-all font-semibold text-sm disabled:opacity-50"
             >
               <LogOut className="w-4 h-4" />
               <span>{isSigningOut ? 'Cerrando sesión...' : 'Cerrar sesión'}</span>
@@ -316,7 +319,7 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
                 setMobileMenuOpen(false);
                 setChangelogModalOpen(true);
               }}
-              className="text-[10px] text-text-sora/50 hover:text-primary-sora font-mono mt-2 block mx-auto transition-colors cursor-pointer"
+              className="text-[10px] text-text-sora/50 dark:text-slate-400 hover:text-primary-sora dark:hover:text-primary-sora font-mono mt-2 block mx-auto transition-colors cursor-pointer"
             >
               Sora Cocina Casera • v{CURRENT_APP_VERSION} ↗
             </button>
@@ -325,36 +328,36 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
       )}
 
       {/* BARRA LATERAL (PC Y IPAD HORIZONTAL) */}
-      <aside className="hidden lg:flex flex-col w-64 bg-white/60 border-r border-border-sora sticky top-0 h-screen p-5 justify-between backdrop-blur-sm shadow-sm flex-shrink-0">
+      <aside className="hidden lg:flex flex-col w-64 bg-white/60 dark:bg-[#0B0E14] border-r border-border-sora dark:border-[#1E2536] sticky top-0 h-screen p-5 justify-between backdrop-blur-sm shadow-sm flex-shrink-0">
         <div>
           {/* Logo y Marca */}
-          <div className="flex items-center space-x-3 pb-6 border-b border-border-sora">
+          <div className="flex items-center space-x-3 pb-6 border-b border-border-sora dark:border-[#1E2536]">
             <div className="w-11 h-11 rounded-2xl overflow-hidden shadow-md shadow-primary-sora/15 border border-primary-sora/15 bg-white flex items-center justify-center flex-shrink-0">
               <img src="/logo.jpg" alt="Sora Cocina Casera" className="w-full h-full object-cover" />
             </div>
             <div>
-              <h2 className="font-serif font-bold text-text-sora text-xl tracking-tight leading-none">
+              <h2 className="font-serif font-bold text-text-sora dark:text-white text-xl tracking-tight leading-none">
                 Sora
               </h2>
-              <p className="text-[11px] text-text-sora/60 uppercase tracking-widest font-semibold mt-0.5">
+              <p className="text-[11px] text-text-sora/60 dark:text-slate-400 uppercase tracking-widest font-semibold mt-0.5">
                 Cocina Casera
               </p>
             </div>
           </div>
 
           {/* Perfil & Rol Activo */}
-          <div className="my-5 p-3 rounded-xl bg-bg-sora/80 border border-border-sora">
+          <div className="my-5 p-3 rounded-xl bg-bg-sora/80 dark:bg-[#121622] border border-border-sora dark:border-[#232B3E]">
             <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 rounded-full bg-primary-sora/15 text-primary-sora flex items-center justify-center text-xs font-bold">
+              <div className="w-8 h-8 rounded-full bg-primary-sora/15 dark:bg-primary-sora/20 text-primary-sora flex items-center justify-center text-xs font-bold">
                 {profile?.full_name?.charAt(0).toUpperCase() || (
                   <UserIcon className="w-4 h-4" />
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-text-sora truncate">
+                <p className="text-xs font-semibold text-text-sora dark:text-white truncate">
                   {profile?.full_name || 'Personal Sora'}
                 </p>
-                <p className="text-[11px] text-text-sora/60 truncate">
+                <p className="text-[11px] text-text-sora/60 dark:text-slate-400 truncate">
                   {user?.email || 'Sesión activa'}
                 </p>
               </div>
@@ -374,7 +377,7 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
 
           {/* Lista de Navegación Condicional por Rol */}
           <nav className="space-y-1">
-            <p className="text-[11px] font-semibold text-text-sora/40 uppercase tracking-wider px-3 mb-2">
+            <p className="text-[11px] font-semibold text-text-sora/40 dark:text-slate-400 uppercase tracking-wider px-3 mb-2">
               Menú Principal
             </p>
             {visibleItems.map((item) => {
@@ -386,8 +389,8 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
                   href={item.href}
                   className={`flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
                     isActive
-                      ? 'bg-primary-sora text-white shadow-sm'
-                      : 'text-text-sora/70 hover:bg-border-sora/40 hover:text-text-sora'
+                      ? 'bg-primary-sora text-white shadow-md shadow-primary-sora/25 font-semibold'
+                      : 'text-text-sora/70 dark:text-slate-300 hover:bg-border-sora/40 dark:hover:bg-white/[0.06] hover:text-text-sora dark:hover:text-white'
                   }`}
                 >
                   <Icon className="w-4 h-4 flex-shrink-0" />
@@ -399,17 +402,24 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Footer Sidebar: Selector de Tema, Novedades, Botón Instalar y Cerrar Sesión */}
-        <div className="pt-3 border-t border-border-sora text-center space-y-2">
-          {/* Selector de tema */}
-          <div className="flex items-center justify-between px-1.5 py-1">
-            <span className="text-[11px] font-semibold text-text-sora/60">Tema</span>
-            <ThemeToggle variant="segmented" />
+        <div className="pt-3 border-t border-border-sora dark:border-[#232B3E] text-center space-y-2.5">
+          {/* Selector de tema full width */}
+          <div className="px-0.5">
+            <div className="flex items-center justify-between mb-1.5 px-1">
+              <span className="text-[10px] font-bold tracking-wider uppercase text-text-sora/50 dark:text-slate-400">
+                Apariencia
+              </span>
+              <span className="text-[10px] text-text-sora/40 dark:text-slate-500">
+                Tema de visualización
+              </span>
+            </div>
+            <ThemeToggle variant="segmented" className="w-full" />
           </div>
 
           {/* Novedades v1.3.0 */}
           <button
             onClick={() => setChangelogModalOpen(true)}
-            className="w-full flex items-center justify-center space-x-2 px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 dark:text-amber-300 transition-all text-xs font-bold border border-amber-500/25 shadow-2xs group"
+            className="w-full flex items-center justify-center space-x-2 px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300 dark:hover:bg-amber-500/25 transition-all text-xs font-bold border border-amber-500/25 dark:border-amber-500/35 shadow-2xs group"
             title="Ver qué hay de nuevo en Sora v1.3.0"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 group-hover:rotate-12 transition-transform" />
@@ -418,7 +428,7 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
 
           <button
             onClick={() => setInstallModalOpen(true)}
-            className="w-full flex items-center justify-center space-x-2 px-3 py-2 rounded-xl bg-primary-sora/10 hover:bg-primary-sora hover:text-white text-primary-sora transition-all text-xs font-bold border border-primary-sora/25 shadow-2xs group"
+            className="w-full flex items-center justify-center space-x-2 px-3 py-2 rounded-xl bg-primary-sora/10 hover:bg-primary-sora hover:text-white text-primary-sora dark:bg-primary-sora/15 dark:hover:bg-primary-sora dark:text-primary-sora dark:hover:text-white transition-all text-xs font-bold border border-primary-sora/25 dark:border-primary-sora/35 shadow-2xs group"
             title="Instalar Sora en tu computadora o laptop"
           >
             <Download className="w-3.5 h-3.5 group-hover:animate-bounce" />
@@ -428,7 +438,7 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
           <button
             onClick={handleSignOut}
             disabled={isSigningOut}
-            className="w-full flex items-center justify-center space-x-2 px-3 py-2 rounded-xl text-primary-sora hover:bg-primary-sora hover:text-white transition-all text-xs font-medium border border-primary-sora/20 disabled:opacity-50"
+            className="w-full flex items-center justify-center space-x-2 px-3 py-2 rounded-xl text-primary-sora hover:bg-primary-sora hover:text-white dark:bg-white/[0.04] dark:hover:bg-rose-500/20 dark:text-slate-300 dark:hover:text-rose-300 dark:border dark:border-white/10 dark:hover:border-rose-500/30 transition-all text-xs font-medium border border-primary-sora/20 disabled:opacity-50"
             title="Cerrar sesión en este dispositivo"
           >
             <LogOut className="w-3.5 h-3.5" />
@@ -436,7 +446,7 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
           </button>
           <button
             onClick={() => setChangelogModalOpen(true)}
-            className="text-[10px] text-text-sora/40 hover:text-primary-sora font-mono mt-1 block mx-auto transition-colors cursor-pointer"
+            className="text-[10px] text-text-sora/40 dark:text-slate-400 hover:text-primary-sora dark:hover:text-primary-sora font-mono mt-1 block mx-auto transition-colors cursor-pointer"
             title="Ver historial de cambios"
           >
             Sora Cocina Casera • v{CURRENT_APP_VERSION} ↗
