@@ -27,6 +27,7 @@ import {
   ShieldAlert,
   Download,
   Boxes,
+  UtensilsCrossed,
 } from 'lucide-react';
 
 interface NavItem {
@@ -70,6 +71,14 @@ const NAVIGATION_ITEMS: NavItem[] = [
     allowedRoles: ['admin', 'coadmin'],
     permissionKey: 'inventario',
     description: 'Control de stock y reorden',
+  },
+  {
+    name: 'Platos & Recetas',
+    href: '/platos',
+    icon: UtensilsCrossed,
+    allowedRoles: ['admin', 'coadmin'],
+    permissionKey: 'platos',
+    description: 'Catálogo de platos y ficha técnica de insumos',
   },
   {
     name: 'Gastos',

@@ -8,7 +8,8 @@ export type AppPermission =
   | 'delivery'
   | 'reportes'
   | 'usuarios'
-  | 'inventario';
+  | 'inventario'
+  | 'platos';
 
 export interface PermissionDefinition {
   id: AppPermission;
@@ -76,6 +77,13 @@ export interface OrderItem {
   subtotal: number;
 }
 
+export interface DishIngredient {
+  inventory_item_id: string;
+  name: string;
+  quantity_required: number;
+  unit: InventoryUnit;
+}
+
 export interface MenuItem {
   id: string;
   name: string;
@@ -83,6 +91,7 @@ export interface MenuItem {
   description?: string;
   category?: string;
   is_available?: boolean;
+  ingredients?: DishIngredient[];
 }
 
 export type PaymentMethod = 'efectivo' | 'transferencia';
@@ -185,6 +194,7 @@ export const ROLE_INFO: Record<
       '/delivery',
       '/reportes',
       '/inventario',
+      '/platos',
       '/admin',
       '/admin/usuarios',
     ],
@@ -194,7 +204,7 @@ export const ROLE_INFO: Record<
     label: 'Co-Administrador',
     description: 'Gestión de gastos, inventario y despacho de delivery',
     defaultRoute: '/gastos',
-    allowedRoutes: ['/gastos', '/inventario', '/delivery', '/ventas'],
+    allowedRoutes: ['/gastos', '/inventario', '/platos', '/delivery', '/ventas'],
     badgeColor: 'bg-blue-100 text-blue-800 border-blue-300', // Azul suave
   },
   delivery: {
@@ -255,11 +265,17 @@ export const APP_PERMISSIONS: PermissionDefinition[] = [
     description: 'Existencias de insumos, empaques, stock mínimo y alertas',
     route: '/inventario',
   },
+  {
+    id: 'platos',
+    label: 'Platos & Recetas',
+    description: 'Catálogo de platos a la venta y ficha técnica de insumos',
+    route: '/platos',
+  },
 ];
 
 export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, AppPermission[]> = {
-  admin: ['dashboard', 'ventas', 'clientes', 'gastos', 'delivery', 'reportes', 'usuarios', 'inventario'],
-  coadmin: ['gastos', 'delivery', 'ventas', 'inventario'],
+  admin: ['dashboard', 'ventas', 'clientes', 'gastos', 'delivery', 'reportes', 'usuarios', 'inventario', 'platos'],
+  coadmin: ['gastos', 'delivery', 'ventas', 'inventario', 'platos'],
   delivery: ['delivery'],
 };
 

@@ -359,6 +359,32 @@ export const DEFAULT_MENU_ITEMS: MenuItem[] = [
     description: 'Lasaña artesanal horneada individual',
     category: 'Lasañas',
     is_available: true,
+    ingredients: [
+      {
+        inventory_item_id: 'inv-queso-mozzarella',
+        name: 'Queso Mozzarella Rallado',
+        quantity_required: 0.35,
+        unit: 'lb',
+      },
+      {
+        inventory_item_id: 'inv-carne-molida',
+        name: 'Carne Molida de Res Seleccionada',
+        quantity_required: 0.3,
+        unit: 'lb',
+      },
+      {
+        inventory_item_id: 'inv-pasta-lasana',
+        name: 'Pasta para Lasaña (Laminada)',
+        quantity_required: 0.25,
+        unit: 'paq',
+      },
+      {
+        inventory_item_id: 'inv-envases-individuales',
+        name: 'Envases Térmicos Individuales',
+        quantity_required: 1,
+        unit: 'ud',
+      },
+    ],
   },
   {
     id: 'lasana-familiar',
@@ -367,6 +393,32 @@ export const DEFAULT_MENU_ITEMS: MenuItem[] = [
     description: 'Lasaña artesanal horneada tamaño familiar',
     category: 'Lasañas',
     is_available: true,
+    ingredients: [
+      {
+        inventory_item_id: 'inv-queso-mozzarella',
+        name: 'Queso Mozzarella Rallado',
+        quantity_required: 0.7,
+        unit: 'lb',
+      },
+      {
+        inventory_item_id: 'inv-carne-molida',
+        name: 'Carne Molida de Res Seleccionada',
+        quantity_required: 0.65,
+        unit: 'lb',
+      },
+      {
+        inventory_item_id: 'inv-pasta-lasana',
+        name: 'Pasta para Lasaña (Laminada)',
+        quantity_required: 0.5,
+        unit: 'paq',
+      },
+      {
+        inventory_item_id: 'inv-envases-familiares',
+        name: 'Bandejas Térmicas Familiares',
+        quantity_required: 1,
+        unit: 'ud',
+      },
+    ],
   },
 ];
 
@@ -392,6 +444,135 @@ export function saveStoredMenuItems(items: MenuItem[]) {
   } catch (e) {
     console.warn('Error al guardar platos del menú localmente:', e);
   }
+}
+
+// Calcular Costo de Materia Prima (Food Cost) de un plato
+export function calculateDishFoodCost(
+  dish: MenuItem,
+  inventoryList: InventoryItem[] = getStoredInventory()
+): { totalCost: number; profitMarginDop: number; profitMarginPercent: number } {
+  if (!dish.ingredients || dish.ingredients.length === 0) {
+    return { totalCost: 0, profitMarginDop: dish.price, profitMarginPercent: 100 };
+  }
+
+  let totalCost = 0;
+  for (const ing of dish.ingredients) {
+    const invItem = inventoryList.find(
+      (it) => it.id === ing.inventory_item_id || it.name.toLowerCase() === ing.name.toLowerCase()
+    );
+    const costPerUnit = invItem?.cost_per_unit || 0;
+    totalCost += ing.quantity_required * costPerUnit;
+  }
+
+  totalCost = Math.round(totalCost * 100) / 100;
+  const profitMarginDop = Math.round((dish.price - totalCost) * 100) / 100;
+  const profitMarginPercent = dish.price > 0 ? Math.round((profitMarginDop / dish.price) * 1000) / 10 : 0;
+
+  return { totalCost, profitMarginDop, profitMarginPercent };
+}
+
+// Descontar automáticamente insumos del inventario para un pedido
+export function deductOrderIngredientsFromInventory(
+  order: Order,
+  menuList: MenuItem[] = getStoredMenuItems()
+): {
+  success: boolean;
+  message: string;
+  deductedItems: { name: string; amount: number; unit: string; remainingStock: number }[];
+} {
+  if (!order.items || order.items.length === 0) {
+    return { success: false, message: 'La orden no tiene platos.', deductedItems: [] };
+  }
+
+  const currentInventory = getStoredInventory();
+  const inventoryMap = new Map<string, InventoryItem>();
+  currentInventory.forEach((it) => inventoryMap.set(it.id, { ...it }));
+
+  const deductions: { name: string; amount: number; unit: string; remainingStock: number }[] = [];
+
+  for (const orderItem of order.items) {
+    const dish = menuList.find(
+      (m) =>
+        m.name.toLowerCase().trim() === orderItem.name.toLowerCase().trim() ||
+        orderItem.name.toLowerCase().includes(m.name.toLowerCase())
+    );
+
+    if (dish && dish.ingredients && dish.ingredients.length > 0) {
+      for (const ing of dish.ingredients) {
+        const requiredTotal = ing.quantity_required * (orderItem.quantity || 1);
+        let invItem = inventoryMap.get(ing.inventory_item_id);
+        if (!invItem) {
+          invItem = Array.from(inventoryMap.values()).find(
+            (it) => it.name.toLowerCase().trim() === ing.name.toLowerCase().trim()
+          );
+        }
+
+        if (invItem) {
+          const newStock = Math.max(0, Math.round((invItem.current_stock - requiredTotal) * 100) / 100);
+          invItem.current_stock = newStock;
+          inventoryMap.set(invItem.id, invItem);
+          deductions.push({
+            name: invItem.name,
+            amount: Math.round(requiredTotal * 100) / 100,
+            unit: invItem.unit,
+            remainingStock: newStock,
+          });
+        }
+      }
+    }
+  }
+
+  if (deductions.length > 0) {
+    const updatedInv = Array.from(inventoryMap.values());
+    saveStoredInventory(updatedInv);
+    return {
+      success: true,
+      message: `Se descontaron insumos de ${order.order_number} (${deductions.length} insumos actualizados).`,
+      deductedItems: deductions,
+    };
+  }
+
+  return {
+    success: false,
+    message: 'Los platos de esta comanda no tienen receta asignada.',
+    deductedItems: [],
+  };
+}
+
+// Manejo de órdenes archivadas (Limpieza diaria sin borrado de BD)
+const ARCHIVED_ORDERS_KEY = 'sora_archived_order_ids_v1';
+
+export function getArchivedOrderIds(): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const raw = localStorage.getItem(ARCHIVED_ORDERS_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    return new Set(Array.isArray(parsed) ? parsed : []);
+  } catch (e) {
+    return new Set();
+  }
+}
+
+export function saveArchivedOrderIds(ids: Set<string> | string[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    const array = Array.from(ids);
+    localStorage.setItem(ARCHIVED_ORDERS_KEY, JSON.stringify(array));
+  } catch (e) {}
+}
+
+export function archiveDeliveredOrders(orders: Order[]): number {
+  const currentArchived = getArchivedOrderIds();
+  let count = 0;
+  orders.forEach((o) => {
+    if ((o.status || '').toLowerCase() === 'entregado' && !currentArchived.has(o.id)) {
+      currentArchived.add(o.id);
+      count++;
+    }
+  });
+  saveArchivedOrderIds(currentArchived);
+  return count;
 }
 
 // ==================== INVENTARIO DE INSUMOS & EMPAQUES ====================

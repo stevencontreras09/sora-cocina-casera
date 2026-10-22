@@ -1,5 +1,5 @@
-export const CURRENT_APP_VERSION = '1.2.6';
-export const CURRENT_RELEASE_TITLE = 'Sora v1.2.6 • Importador Masivo WhatsApp/VCF, Segmentación Pickup & Reposición Directa de Stock';
+export const CURRENT_APP_VERSION = '1.2.7';
+export const CURRENT_RELEASE_TITLE = 'Sora v1.2.7 • Autocompletado Dinámico de Clientes, Limpieza de Comandas, Módulo Platos & Recetas y Logo PWA';
 export const CURRENT_RELEASE_DATE = '2026-10-22';
 
 export interface VersionHighlight {
@@ -10,34 +10,34 @@ export interface VersionHighlight {
 
 export const CURRENT_RELEASE_HIGHLIGHTS: VersionHighlight[] = [
   {
-    icon: '📲',
-    title: 'Importador Masivo de WhatsApp & VCF',
-    description: 'Pega listas de pedidos, mensajes de chat o sube archivos .vcf para crear clientes y direcciones automáticamente con detección de duplicados.',
+    icon: '⚡',
+    title: 'Autocompletado Dinámico de Clientes',
+    description: 'Búsqueda interactiva en un solo paso con sugerencias en tiempo real, selección instantánea y botón para registrar clientes nuevos al vuelo.',
   },
   {
-    icon: '🏪',
-    title: 'Segmentación de Clientes Pickup vs Domicilio',
-    description: 'Filtra en un toque entre clientes de mostrador y pedidos con entrega a domicilio, con insignias visuales distintivas.',
+    icon: '🧹',
+    title: 'Limpieza Diaria & Pestañas de Historial',
+    description: 'Separación organizada en Cocina Activa, Entregados Hoy y Archivo Histórico con botón para limpiar pantalla sin borrar ningún registro.',
   },
   {
-    icon: '🛒',
-    title: 'Reposición Directa de Stock desde Inventario',
-    description: 'Botón "Comprar" en artículos con stock bajo que actualiza existencias y registra el gasto contable en un solo paso.',
+    icon: '🍲',
+    title: 'Módulo de Platos & Escandallo de Recetas',
+    description: 'Gestión de platos a la venta con receta de insumos, cálculo automático de costo de producción (Food Cost), margen de ganancia y descuento de inventario.',
   },
   {
-    icon: '🔔',
-    title: 'Alerta Sonora Realtime en el Dashboard',
-    description: 'El timbre de cocina suena al instante en el Dashboard en cuanto se crea una orden en el mostrador.',
+    icon: '🎨',
+    title: 'Logo Oficial de Sora en Escritorio y Celular',
+    description: 'Icono nativo favicon.ico y soporte maskable en PWA para que el logo de Sora se vea nítido al instalar la app en Windows, Mac, Android y iPhone.',
   },
   {
-    icon: '🖨️',
-    title: 'Impresión y Auditoría de Cocina',
-    description: 'Exporta o imprime el listado de existencias con formato limpio para auditorías y cuadre físico de despensa.',
+    icon: '💬',
+    title: 'Recordatorio WhatsApp Adaptativo',
+    description: 'Recuadro de recordatorios de pedidos futuros totalmente integrado dentro de la comanda para una visualización impecable sin desbordamientos.',
   },
   {
-    icon: '🚨',
-    title: 'Semáforo de Urgencia & Alertas de Producción',
-    description: 'Parpadeo intermitente en comandas próximas a vencer y recordatorios matutinos de pedidos agendados.',
+    icon: '📦',
+    title: 'Descuento Automático de Inventario',
+    description: 'Descuento opcional y automático de carnes, salsas, quesos y pastas del almacén al crear un pedido o marcarlo como entregado.',
   },
 ];
 

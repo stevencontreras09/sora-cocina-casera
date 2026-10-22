@@ -17,13 +17,19 @@ import {
   saveStoredOrders,
   getStoredOrders,
   mergeClientsWithCached,
+  saveStoredClients,
+  saveStoredAddresses,
+  getStoredAddresses,
   isValidUuid,
   generateUuid,
   getStoredMenuItems,
   saveStoredMenuItems,
   DEFAULT_MENU_ITEMS,
   calculateOrderUrgency,
-  extractWhatsAppMessage,
+  getArchivedOrderIds,
+  saveArchivedOrderIds,
+  archiveDeliveredOrders,
+  deductOrderIngredientsFromInventory,
 } from '@/lib/storage';
 import { triggerKitchenAlert } from '@/lib/audioAlerts';
 import { ProductionReminderAlerts } from '@/components/alerts/ProductionReminderAlerts';
@@ -33,6 +39,7 @@ import {
   SORA_KITCHEN_COORDS,
 } from '@/lib/routeOptimizer';
 import { MenuManagerModal } from '@/components/ventas/MenuManagerModal';
+import { ClientModal, ClientAddressFormData } from '@/components/clientes/ClientModal';
 import {
   ShoppingBag,
   Plus,
@@ -60,6 +67,11 @@ import {
   Sparkles,
   Calendar,
   Sun,
+  Archive,
+  CheckCheck,
+  Filter,
+  Phone,
+  UserPlus,
 } from 'lucide-react';
 
 export default function VentasPage() {
@@ -121,10 +133,19 @@ export default function VentasPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Panel rápido para extraer WhatsApp en ventas
-  const [quickWhatsappText, setQuickWhatsappText] = useState('');
-  const [showQuickWhatsapp, setShowQuickWhatsapp] = useState(false);
-  const [quickWhatsappNotice, setQuickWhatsappNotice] = useState<string | null>(null);
+  // Estados para Autocompletado Dinámico de Clientes
+  const [isComboboxOpen, setIsComboboxOpen] = useState(false);
+  const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
+  const [newClientInitialData, setNewClientInitialData] = useState<Client | null>(null);
+
+  // Estados de Pestañas de Historial y Limpieza Diaria (Separación Hoy vs Archivo)
+  const [historyTab, setHistoryTab] = useState<'active' | 'delivered_today' | 'archive'>('active');
+  const [archivedOrderIds, setArchivedOrderIds] = useState<Set<string>>(() => getArchivedOrderIds());
+  const [archiveSearch, setArchiveSearch] = useState('');
+  const [archiveDateFilter, setArchiveDateFilter] = useState('');
+
+  // Opción de descuento automático de insumos al crear orden
+  const [autoDeductInventory, setAutoDeductInventory] = useState(true);
 
   // Cargar datos (Supabase + Respaldo Local Auto-guardado)
   const loadData = async () => {
@@ -331,78 +352,142 @@ export default function VentasPage() {
     }
   }, [feeEstimate, editingOrder, deliveryType]);
 
-  // Extracción rápida de cliente o comanda desde texto copiado de WhatsApp
-  const handleQuickWhatsAppExtract = async () => {
-    if (!quickWhatsappText.trim()) return;
-    const extracted = extractWhatsAppMessage(quickWhatsappText);
+  // Selección instantánea de cliente desde el panel de autocompletado
+  const handleSelectClientFromCombobox = (client: Client) => {
+    setSelectedClientId(client.id);
+    setClientSearchQuery('');
+    setIsComboboxOpen(false);
 
-    // 1. Si detecta modalidad pickup
-    if (extracted.isPickup) {
+    const addrs = client.addresses || [];
+    const isPickupClient = addrs.some(
+      (a) =>
+        a.label?.toLowerCase().includes('local') ||
+        a.label?.toLowerCase().includes('retiro') ||
+        a.reference?.toLowerCase().includes('pickup')
+    );
+
+    if (isPickupClient) {
       setDeliveryType('pickup');
+      setDeliveryFee(0);
+    } else {
+      setDeliveryType('delivery');
+      if (addrs.length > 0) {
+        const defaultA = addrs.find((a) => a.is_default) || addrs[0];
+        setSelectedAddressId(defaultA.id);
+      }
+    }
+  };
+
+  // Abrir modal de creación de cliente autollenando el nombre digitado
+  const handleOpenCreateClientFromCombobox = () => {
+    setNewClientInitialData({
+      id: '',
+      name: clientSearchQuery.trim(),
+      phone: '',
+      notes: '',
+    });
+    setIsNewClientModalOpen(true);
+    setIsComboboxOpen(false);
+  };
+
+  // Guardar cliente nuevo desde el modal rápido
+  const handleSaveNewClient = async (
+    clientData: { name: string; phone: string; notes: string },
+    addressData?: ClientAddressFormData | null
+  ) => {
+    const newCId = generateUuid();
+    const newClient: Client = {
+      id: newCId,
+      name: clientData.name,
+      phone: clientData.phone,
+      notes: clientData.notes,
+      created_at: new Date().toISOString(),
+    };
+
+    if (addressData) {
+      const newAId = generateUuid();
+      newClient.addresses = [
+        {
+          id: newAId,
+          client_id: newCId,
+          label: addressData.label,
+          address: addressData.address,
+          reference: addressData.reference || null,
+          latitude: addressData.latitude,
+          longitude: addressData.longitude,
+          is_default: true,
+          created_at: new Date().toISOString(),
+        },
+      ];
     }
 
-    // 2. Buscar si ya existe el cliente por teléfono o nombre
-    let found = clients.find((c) => {
-      const p1 = cleanPhoneNumber(c.phone);
-      const p2 = cleanPhoneNumber(extracted.phone);
-      return (
-        (p1 && p2 && (p1.includes(p2) || p2.includes(p1))) ||
-        (extracted.name && c.name.toLowerCase().includes(extracted.name.toLowerCase()))
-      );
-    });
+    const updated = [newClient, ...clients];
+    setClients(updated);
+    saveStoredClients(updated);
+    if (newClient.addresses) {
+      saveStoredAddresses([...newClient.addresses, ...getStoredAddresses()]);
+    }
 
-    if (found) {
-      setSelectedClientId(found.id);
-      setQuickWhatsappNotice(`¡Cliente "${found.name}" seleccionado automáticamente!`);
-    } else if (extracted.name || extracted.phone) {
-      const newCId = generateUuid();
-      const newAddrId = generateUuid();
-      const isPick = extracted.isPickup;
-      const newClientObj: Client = {
-        id: newCId,
-        name: extracted.name || 'Cliente WhatsApp',
-        phone: extracted.phone || '',
-        notes: 'Creado desde WhatsApp en Ventas',
-        addresses: [
+    try {
+      await supabase.from('clients').insert([
+        {
+          id: newClient.id,
+          name: newClient.name,
+          phone: newClient.phone,
+          notes: newClient.notes,
+        },
+      ]);
+      if (newClient.addresses && newClient.addresses[0]) {
+        const addr = newClient.addresses[0];
+        await supabase.from('client_addresses').insert([
           {
-            id: newAddrId,
-            client_id: newCId,
-            label: isPick ? 'Retiro en Local' : 'Casa',
-            address: isPick
-              ? (SORA_KITCHEN_COORDS.address || 'Sora Cocina Casera')
-              : (extracted.address || 'Dirección por confirmar'),
-            reference: extracted.reference || null,
-            latitude: isPick ? SORA_KITCHEN_COORDS.lat : null,
-            longitude: isPick ? SORA_KITCHEN_COORDS.lng : null,
+            id: addr.id,
+            client_id: addr.client_id,
+            label: addr.label,
+            address: addr.address,
+            reference: addr.reference,
+            latitude: addr.latitude,
+            longitude: addr.longitude,
             is_default: true,
           },
-        ],
-      };
-
-      const updated = [newClientObj, ...clients];
-      setClients(updated);
-      setSelectedClientId(newCId);
-      setSelectedAddressId(newAddrId);
-
-      try {
-        await supabase.from('clients').insert([
-          {
-            id: newCId,
-            name: newClientObj.name,
-            phone: newClientObj.phone,
-            notes: newClientObj.notes,
-          },
         ]);
-      } catch (_) {}
+      }
+    } catch (_) {}
 
-      setQuickWhatsappNotice(
-        `¡Cliente "${newClientObj.name}" registrado y seleccionado con éxito!`
-      );
-    } else {
-      setQuickWhatsappNotice('No se encontraron datos claros de cliente en el texto.');
-    }
+    handleSelectClientFromCombobox(newClient);
+    setIsNewClientModalOpen(false);
+    setSuccessNotice(`¡Cliente "${newClient.name}" registrado y seleccionado!`);
+    setTimeout(() => setSuccessNotice(null), 3500);
+  };
 
-    setTimeout(() => setQuickWhatsappNotice(null), 3500);
+  // Limpieza diaria de comandas: Archiva entregados sin borrar nada de BD
+  const handleCleanDeliveredOrders = () => {
+    const newlyArchived = archiveDeliveredOrders(orders);
+    const updatedArchived = getArchivedOrderIds();
+    setArchivedOrderIds(new Set(updatedArchived));
+    setSuccessNotice(
+      newlyArchived > 0
+        ? `¡Comandas limpiadas! Se archivaron ${newlyArchived} pedidos entregados. Disponibles en "Archivo Histórico".`
+        : 'Todos los pedidos entregados ya se encuentran archivados.'
+    );
+    setTimeout(() => setSuccessNotice(null), 3500);
+  };
+
+  // Desarchivar una orden
+  const handleUnarchiveOrder = (orderId: string) => {
+    const current = getArchivedOrderIds();
+    current.delete(orderId);
+    saveArchivedOrderIds(current);
+    setArchivedOrderIds(new Set(current));
+    setSuccessNotice('Pedido restaurado a la vista de cocina activa.');
+    setTimeout(() => setSuccessNotice(null), 3000);
+  };
+
+  // Descontar manualmente insumos de una orden
+  const handleDeductOrderStock = (order: Order) => {
+    const result = deductOrderIngredientsFromInventory(order, menuItems);
+    setSuccessNotice(result.message);
+    setTimeout(() => setSuccessNotice(null), 4000);
   };
 
   const handleItemChange = (
@@ -476,6 +561,54 @@ export default function VentasPage() {
     );
   }, [clients, clientSearchQuery]);
 
+  // Listas de pedidos por pestañas: Activas de Hoy, Entregados Hoy, y Archivo Histórico
+  const activeOrders = useMemo(() => {
+    return orders.filter((o) => {
+      if (archivedOrderIds.has(o.id)) return false;
+      const st = (o.status || '').toLowerCase();
+      const isComplete = st === 'entregado' || st === 'cancelado';
+      const isToday = !o.delivery_date || o.delivery_date === todayStr;
+      if (!isComplete) return true;
+      return isToday;
+    });
+  }, [orders, archivedOrderIds, todayStr]);
+
+  const deliveredTodayOrders = useMemo(() => {
+    return orders.filter((o) => {
+      const st = (o.status || '').toLowerCase();
+      const isToday = !o.delivery_date || o.delivery_date === todayStr;
+      return st === 'entregado' && isToday;
+    });
+  }, [orders, todayStr]);
+
+  const historicalOrders = useMemo(() => {
+    return orders.filter((o) => {
+      const isArchived = archivedOrderIds.has(o.id);
+      const isPastDate = Boolean(o.delivery_date && o.delivery_date < todayStr);
+      const isComplete = ['entregado', 'cancelado'].includes((o.status || '').toLowerCase());
+      const isHistorical = isArchived || (isPastDate && isComplete);
+      if (!isHistorical) return false;
+
+      if (archiveDateFilter && o.delivery_date !== archiveDateFilter) return false;
+
+      if (archiveSearch) {
+        const q = archiveSearch.toLowerCase().trim();
+        const matchName = (o.client_name || '').toLowerCase().includes(q);
+        const matchNum = (o.order_number || '').toLowerCase().includes(q);
+        const matchPhone = (o.client_phone || '').includes(q);
+        return matchName || matchNum || matchPhone;
+      }
+
+      return true;
+    });
+  }, [orders, archivedOrderIds, todayStr, archiveDateFilter, archiveSearch]);
+
+  const displayedOrders = useMemo(() => {
+    if (historyTab === 'active') return activeOrders;
+    if (historyTab === 'delivered_today') return deliveredTodayOrders;
+    return historicalOrders;
+  }, [historyTab, activeOrders, deliveredTodayOrders, historicalOrders]);
+
   // Actualizar estado de una orden
   const handleUpdateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
     const updatedList = orders.map((o) =>
@@ -483,6 +616,16 @@ export default function VentasPage() {
     );
     setOrders(updatedList);
     saveStoredOrders(updatedList);
+
+    // Si pasa a preparación o entregado, descontar insumos del inventario
+    if (newStatus === 'En Preparacion' || newStatus === 'Entregado') {
+      const ord = orders.find((o) => o.id === orderId);
+      if (ord) {
+        try {
+          deductOrderIngredientsFromInventory(ord, menuItems);
+        } catch (_) {}
+      }
+    }
 
     try {
       await supabase
@@ -817,6 +960,15 @@ export default function VentasPage() {
         orderNumber
       );
 
+      // Descuento automático de insumos del inventario si está activado
+      if (autoDeductInventory) {
+        try {
+          deductOrderIngredientsFromInventory(newOrder, menuItems);
+        } catch (e) {
+          console.warn('Deducción automática de inventario:', e);
+        }
+      }
+
       setIsSubmitting(false);
       setSuccessNotice(
         `¡Pedido #${orderNumber} creado y guardado automáticamente! 🔔 Campana de cocina activada.`
@@ -989,7 +1141,7 @@ export default function VentasPage() {
             </div>
 
             <form onSubmit={handleSubmitOrder} className="space-y-5">
-              {/* 1. SELECCIÓN DE CLIENTE */}
+              {/* 1. SELECCIÓN DE CLIENTE CON AUTOCOMPLETADO DINÁMICO */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-semibold text-text-sora/80 uppercase tracking-wider">
@@ -997,101 +1149,159 @@ export default function VentasPage() {
                   </label>
                   <button
                     type="button"
-                    onClick={() => setShowQuickWhatsapp(!showQuickWhatsapp)}
+                    onClick={() => {
+                      setNewClientInitialData(null);
+                      setIsNewClientModalOpen(true);
+                    }}
                     className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-xl bg-primary-sora/10 text-primary-sora border border-primary-sora/25 hover:bg-primary-sora hover:text-white transition-all text-[11px] font-bold"
                   >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>{showQuickWhatsapp ? 'Cerrar' : '✨ Pegar WhatsApp'}</span>
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>+ Registrar Cliente</span>
                   </button>
                 </div>
 
-                {showQuickWhatsapp && (
-                  <div className="p-3 rounded-2xl bg-gradient-to-r from-primary-sora/10 via-amber-500/5 to-white border border-primary-sora/30 space-y-2 animate-in fade-in">
-                    <textarea
-                      rows={2}
-                      placeholder="Pega el mensaje de WhatsApp aquí para extraer nombre, teléfono, dirección o retiro en local..."
-                      value={quickWhatsappText}
-                      onChange={(e) => setQuickWhatsappText(e.target.value)}
-                      className="w-full p-2.5 rounded-xl border border-border-sora bg-white text-text-sora text-xs placeholder:text-text-sora/30 focus:outline-none focus:ring-1 focus:ring-primary-sora"
-                    />
-                    <div className="flex items-center justify-between">
-                      <button
-                        type="button"
-                        onClick={handleQuickWhatsAppExtract}
-                        disabled={!quickWhatsappText.trim()}
-                        className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-primary-sora text-white text-xs font-bold hover:bg-primary-hover transition-all disabled:opacity-50"
-                      >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>Extraer y Seleccionar</span>
-                      </button>
-                      {quickWhatsappText && (
+                {/* Si hay un cliente seleccionado: Mostrar tarjeta de cliente con opción de cambiar */}
+                {currentClient ? (
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-r from-primary-sora/10 via-amber-500/5 to-white border border-primary-sora/30 flex items-center justify-between shadow-xs">
+                    <div className="flex items-center space-x-3 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-primary-sora text-white flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-xs">
+                        {currentClient.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center space-x-2">
+                          <h4 className="font-bold text-sm text-text-sora truncate">{currentClient.name}</h4>
+                          <span className="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full bg-primary-sora/15 text-primary-sora font-semibold">
+                            <Phone className="w-2.5 h-2.5 mr-1" />
+                            {currentClient.phone}
+                          </span>
+                        </div>
+                        <p className="text-xs text-text-sora/70 truncate flex items-center mt-0.5">
+                          {currentAddress ? (
+                            <>
+                              <MapPin className="w-3 h-3 mr-1 text-primary-sora flex-shrink-0" />
+                              <span className="font-medium text-text-sora/80 mr-1">[{currentAddress.label}]:</span>
+                              <span className="truncate">{currentAddress.address}</span>
+                            </>
+                          ) : (
+                            <span className="text-emerald-700 font-medium">Retiro en Local (Sin dirección de envío)</span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedClientId('');
+                        setClientSearchQuery('');
+                        setIsComboboxOpen(true);
+                      }}
+                      className="ml-3 px-3 py-1.5 rounded-xl border border-border-sora bg-white hover:bg-bg-sora text-text-sora text-xs font-semibold transition-all flex items-center space-x-1 flex-shrink-0"
+                    >
+                      <X className="w-3.5 h-3.5 text-text-sora/50" />
+                      <span>Cambiar</span>
+                    </button>
+                  </div>
+                ) : (
+                  /* Campo de Entrada de Autocompletado Dinámico */
+                  <div className="relative">
+                    <div className="relative">
+                      <Search className="w-4 h-4 absolute left-3.5 top-3.5 text-text-sora/40 pointer-events-none" />
+                      <input
+                        type="text"
+                        required={!selectedClientId}
+                        placeholder="Escribe el nombre o teléfono del cliente para autocompletar..."
+                        value={clientSearchQuery}
+                        onChange={(e) => {
+                          setClientSearchQuery(e.target.value);
+                          setIsComboboxOpen(true);
+                        }}
+                        onFocus={() => setIsComboboxOpen(true)}
+                        className="w-full pl-10 pr-10 py-3 rounded-2xl border border-border-sora bg-white text-text-sora text-xs placeholder:text-text-sora/40 focus:outline-none focus:ring-2 focus:ring-primary-sora/30 focus:border-primary-sora font-medium shadow-xs"
+                      />
+                      {clientSearchQuery && (
                         <button
                           type="button"
-                          onClick={() => setQuickWhatsappText('')}
-                          className="text-[11px] text-text-sora/50 hover:text-text-sora"
+                          onClick={() => {
+                            setClientSearchQuery('');
+                            setIsComboboxOpen(false);
+                          }}
+                          className="absolute right-3 top-3 text-text-sora/40 hover:text-text-sora p-0.5"
                         >
-                          Limpiar
+                          <X className="w-4 h-4" />
                         </button>
                       )}
                     </div>
-                    {quickWhatsappNotice && (
-                      <p className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 p-2 rounded-lg border border-emerald-200">
-                        {quickWhatsappNotice}
-                      </p>
-                    )}
-                  </div>
-                )}
 
-                {clients.length === 0 ? (
-                  <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-start space-x-2">
-                    <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-bold">Aún no hay clientes registrados en el directorio.</p>
-                      <p className="mt-0.5 text-[11px]">
-                        Ve a la pestaña <strong>Clientes</strong> para registrar el primero y asignarle dirección en la misma vista.
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <div className="relative">
-                      <Search className="w-4 h-4 absolute left-3 top-3 text-text-sora/40 pointer-events-none" />
-                      <input
-                        type="text"
-                        placeholder="Filtrar por nombre o teléfono..."
-                        value={clientSearchQuery}
-                        onChange={(e) => setClientSearchQuery(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs placeholder:text-text-sora/30 focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora"
-                      />
-                    </div>
+                    {/* Menú desplegable flotante de resultados autocompletados */}
+                    {isComboboxOpen && (
+                      <div className="absolute z-30 left-0 right-0 mt-1.5 bg-white rounded-2xl border border-border-sora shadow-xl max-h-72 overflow-y-auto divide-y divide-border-sora/40 animate-in fade-in zoom-in-95 duration-100">
+                        {filteredClients.length > 0 ? (
+                          <>
+                            <div className="p-2 bg-bg-sora/50 text-[11px] font-bold text-text-sora/60 flex items-center justify-between">
+                              <span>Coincidencias ({filteredClients.length})</span>
+                              <span className="text-[10px] font-normal text-text-sora/40">Haz clic para seleccionar</span>
+                            </div>
+                            {filteredClients.map((client) => {
+                              const defaultAddr = (client.addresses || []).find((a) => a.is_default) || (client.addresses || [])[0];
+                              const isPickupOnly = !defaultAddr || defaultAddr.label?.toLowerCase().includes('local') || defaultAddr.label?.toLowerCase().includes('retiro');
 
-                    <select
-                      required
-                      value={selectedClientId}
-                      onChange={(e) => setSelectedClientId(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
-                    >
-                      <option value="">-- Elige un cliente ({filteredClients.length}) --</option>
-                      {filteredClients.map((client) => (
-                        <option key={client.id} value={client.id}>
-                          {client.name} ({client.phone})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                              return (
+                                <button
+                                  key={client.id}
+                                  type="button"
+                                  onClick={() => handleSelectClientFromCombobox(client)}
+                                  className="w-full text-left p-3 hover:bg-primary-sora/5 transition-colors flex items-center justify-between group"
+                                >
+                                  <div className="min-w-0 pr-2">
+                                    <div className="flex items-center space-x-2">
+                                      <span className="font-bold text-xs text-text-sora group-hover:text-primary-sora transition-colors">
+                                        {client.name}
+                                      </span>
+                                      <span className="text-[11px] font-mono text-text-sora/60 bg-bg-sora px-1.5 py-0.5 rounded">
+                                        {client.phone}
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-text-sora/60 truncate mt-0.5 flex items-center">
+                                      {isPickupOnly ? (
+                                        <span className="inline-flex items-center text-emerald-700 font-medium">
+                                          <Store className="w-3 h-3 mr-1" />
+                                          Retiro en Local
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center truncate">
+                                          <MapPin className="w-3 h-3 mr-1 text-primary-sora flex-shrink-0" />
+                                          {defaultAddr?.address}
+                                        </span>
+                                      )}
+                                    </p>
+                                  </div>
+                                  <span className="text-[11px] font-semibold text-primary-sora opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                                    Seleccionar →
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </>
+                        ) : (
+                          <div className="p-4 text-center text-xs text-text-sora/60">
+                            <p>No se encontraron clientes con "{clientSearchQuery}".</p>
+                          </div>
+                        )}
 
-                {currentClient && (
-                  <div className="p-3 rounded-2xl bg-bg-sora/80 border border-border-sora flex items-center justify-between text-xs">
-                    <div className="flex items-center space-x-2">
-                      <User className="w-4 h-4 text-primary-sora" />
-                      <span className="font-semibold text-text-sora">{currentClient.name}</span>
-                      <span className="text-text-sora/60">({currentClient.phone})</span>
-                    </div>
-                    {currentClient.notes && (
-                      <span className="text-[11px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 truncate max-w-xs">
-                        {currentClient.notes}
-                      </span>
+                        {/* Botón rápido para registrar cliente nuevo con lo que el usuario escribió */}
+                        {clientSearchQuery.trim().length > 0 && (
+                          <div className="p-2.5 bg-gradient-to-r from-amber-50 to-primary-sora/5 border-t border-border-sora">
+                            <button
+                              type="button"
+                              onClick={handleOpenCreateClientFromCombobox}
+                              className="w-full py-2 px-3 rounded-xl bg-primary-sora text-white text-xs font-bold hover:bg-primary-hover transition-all flex items-center justify-center space-x-1.5 shadow-xs"
+                            >
+                              <UserPlus className="w-3.5 h-3.5" />
+                              <span>+ Registrar nuevo cliente "{clientSearchQuery.trim()}"</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}
@@ -1688,6 +1898,28 @@ export default function VentasPage() {
                 </div>
               </div>
 
+              {/* Opción de Descuento de Insumos Automático */}
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-amber-50/70 border border-amber-200/80 text-xs">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center flex-shrink-0">
+                    <UtensilsCrossed className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-text-sora block">Descontar insumos de inventario</span>
+                    <span className="text-[11px] text-text-sora/60 block">Resta automáticamente carnes, salsas y pastas de los platos.</span>
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer flex-shrink-0 ml-3">
+                  <input
+                    type="checkbox"
+                    checked={autoDeductInventory}
+                    onChange={(e) => setAutoDeductInventory(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                </label>
+              </div>
+
               {/* Botón de Enviar (Crear o Actualizar) */}
               <div className="flex items-center space-x-3 pt-2">
                 {editingOrder && (
@@ -1733,26 +1965,117 @@ export default function VentasPage() {
             </form>
           </div>
 
-          {/* COLUMNA DERECHA: HISTORIAL DE PEDIDOS CON EDICIÓN Y BORRADO */}
+          {/* COLUMNA DERECHA: HISTORIAL DE PEDIDOS CON PESTAÑAS Y LIMPIEZA DIARIA */}
           <div className="lg:col-span-5 space-y-4">
             <div className="bg-white/85 rounded-3xl p-5 sm:p-6 border border-border-sora shadow-sora">
-              <div className="flex items-center justify-between pb-4 border-b border-border-sora mb-4">
-                <div>
-                  <h3 className="font-serif font-bold text-base text-text-sora">
-                    Historial de Pedidos
-                  </h3>
-                  <p className="text-xs text-text-sora/60">
-                    {orders.length} pedidos registrados (Autoguardado activo)
-                  </p>
-                </div>
-                <span className="text-xs px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-semibold">
-                  Pendientes: {orders.filter((o) => (o.status || '').toLowerCase() === 'pendiente').length}
-                </span>
+              {/* Selector de Pestañas de Historial */}
+              <div className="flex items-center space-x-1.5 p-1 bg-bg-sora rounded-2xl border border-border-sora mb-4">
+                <button
+                  type="button"
+                  onClick={() => setHistoryTab('active')}
+                  className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 ${
+                    historyTab === 'active'
+                      ? 'bg-white text-primary-sora shadow-sm border border-border-sora/60'
+                      : 'text-text-sora/60 hover:text-text-sora'
+                  }`}
+                >
+                  <Flame className="w-3.5 h-3.5" />
+                  <span>Activas ({activeOrders.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setHistoryTab('delivered_today')}
+                  className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 ${
+                    historyTab === 'delivered_today'
+                      ? 'bg-white text-emerald-700 shadow-sm border border-border-sora/60'
+                      : 'text-text-sora/60 hover:text-text-sora'
+                  }`}
+                >
+                  <CheckCheck className="w-3.5 h-3.5" />
+                  <span>Entregadas Hoy ({deliveredTodayOrders.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setHistoryTab('archive')}
+                  className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 ${
+                    historyTab === 'archive'
+                      ? 'bg-white text-indigo-700 shadow-sm border border-border-sora/60'
+                      : 'text-text-sora/60 hover:text-text-sora'
+                  }`}
+                >
+                  <Archive className="w-3.5 h-3.5" />
+                  <span>Archivo ({historicalOrders.length})</span>
+                </button>
               </div>
 
-              {orders.length > 0 ? (
+              {/* Botón de Limpieza Diaria en Pestaña Activa */}
+              {historyTab === 'active' && (
+                <div className="mb-4 p-3 rounded-2xl bg-amber-50/70 border border-amber-200/80 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <span className="text-xs font-bold text-amber-900 block">
+                      Limpieza de Comandas de Cocina
+                    </span>
+                    <span className="text-[11px] text-amber-800/80 leading-tight block truncate">
+                      Archiva pedidos entregados para despejar la vista activa.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCleanDeliveredOrders}
+                    className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all shadow-xs flex items-center space-x-1 flex-shrink-0"
+                    title="Archivar pedidos entregados sin borrar datos históricos"
+                  >
+                    <span>🧹 Limpiar Entregados</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Barra de Filtro y Búsqueda en Pestaña de Archivo Histórico */}
+              {historyTab === 'archive' && (
+                <div className="mb-4 p-3 rounded-2xl bg-bg-sora/80 border border-border-sora space-y-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-text-sora/40 pointer-events-none" />
+                      <input
+                        type="text"
+                        placeholder="Buscar por cliente, orden o tel..."
+                        value={archiveSearch}
+                        onChange={(e) => setArchiveSearch(e.target.value)}
+                        className="w-full pl-8 pr-2.5 py-1.5 rounded-xl border border-border-sora bg-white text-text-sora text-xs placeholder:text-text-sora/40 focus:outline-none focus:ring-1 focus:ring-primary-sora"
+                      />
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="date"
+                        value={archiveDateFilter}
+                        onChange={(e) => setArchiveDateFilter(e.target.value)}
+                        className="w-full px-2.5 py-1.5 rounded-xl border border-border-sora bg-white text-text-sora text-xs focus:outline-none focus:ring-1 focus:ring-primary-sora"
+                      />
+                    </div>
+                  </div>
+                  {(archiveSearch || archiveDateFilter) && (
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setArchiveSearch('');
+                          setArchiveDateFilter('');
+                        }}
+                        className="text-[11px] text-primary-sora font-semibold hover:underline"
+                      >
+                        Limpiar filtros
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Listado de Pedidos según Pestaña */}
+              {displayedOrders.length > 0 ? (
                 <div className="space-y-3.5 max-h-[780px] overflow-y-auto pr-1">
-                  {orders.map((order) => {
+                  {displayedOrders.map((order) => {
                     const cleanPhone = cleanPhoneNumber(order.client_phone);
                     const orderFee = order.delivery_fee || 0;
                     const trackingOrigin =
@@ -1777,6 +2100,7 @@ export default function VentasPage() {
                     const isBeingEdited = editingOrder?.id === order.id;
                     const urgency = calculateOrderUrgency(order, currentTime);
                     const isFutureDay = Boolean(order.delivery_date && order.delivery_date > todayStr);
+                    const isOrderArchived = archivedOrderIds.has(order.id);
 
                     const futureWhatsAppMsg = encodeURIComponent(
                       `¡Hola ${order.client_name}! Te saludamos de Sora Cocina Casera 🍲.\n\n` +
@@ -1797,7 +2121,7 @@ export default function VentasPage() {
                             : `${urgency.borderClass} ${urgency.bgTintClass} ${urgency.isBlinking ? 'shadow-md shadow-rose-500/10' : 'shadow-xs'}`
                         }`}
                       >
-                        {/* Cabecera de la tarjeta con Semáforo y Estados Modernos */}
+                        {/* Cabecera de la tarjeta */}
                         <div className="flex items-center justify-between gap-1 flex-wrap">
                           <div className="flex items-center space-x-2">
                             <span className="font-mono text-xs font-bold text-primary-sora bg-bg-sora px-2 py-0.5 rounded-md border border-border-sora">
@@ -1809,14 +2133,14 @@ export default function VentasPage() {
                           </div>
 
                           <div className="flex items-center space-x-1.5 flex-wrap gap-1">
-                            {/* Badge de Urgencia Semáforo */}
+                            {/* Badge de Urgencia */}
                             {urgency.urgencyLevel !== 'normal' && (
                               <span className={`text-[10px] px-2 py-0.5 rounded-full border flex items-center ${urgency.badgeClass}`}>
                                 {urgency.badgeLabel}
                               </span>
                             )}
 
-                            {/* Estado con Iconografía Renovada */}
+                            {/* Selector / Visualizador de Estado */}
                             <span
                               className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border uppercase flex items-center space-x-1 ${
                                 (order.status || '').toLowerCase() === 'entregado'
@@ -1840,7 +2164,29 @@ export default function VentasPage() {
                           </div>
                         </div>
 
-                        {/* Horario y Fecha Prometida */}
+                        {/* Recuadro de Recordatorio Futuro por WhatsApp (Adaptativo sin desbordamiento) */}
+                        {isFutureDay && (
+                          <div className="p-2.5 rounded-xl bg-indigo-50/90 border border-indigo-200 flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center space-x-1.5 text-indigo-950 text-xs min-w-0">
+                              <Calendar className="w-3.5 h-3.5 text-indigo-600 flex-shrink-0" />
+                              <span className="font-bold truncate">
+                                Agendado: {order.delivery_date} {order.delivery_time ? `• ${order.delivery_time}` : ''}
+                              </span>
+                            </div>
+                            <a
+                              href={`https://wa.me/${cleanPhone}?text=${futureWhatsAppMsg}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold transition-all shadow-xs flex-shrink-0"
+                              title="Enviar recordatorio de pedido futuro al cliente por WhatsApp"
+                            >
+                              <MessageCircle className="w-3 h-3" />
+                              <span>Recordar WhatsApp</span>
+                            </a>
+                          </div>
+                        )}
+
+                        {/* Horario y Modalidad */}
                         <div className="flex flex-wrap items-center gap-1.5 text-xs text-text-sora/80">
                           {order.delivery_time ? (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 font-bold text-[11px]">
@@ -1878,6 +2224,22 @@ export default function VentasPage() {
                           </p>
                         </div>
 
+                        {/* Platos */}
+                        {order.items && order.items.length > 0 && (
+                          <div className="bg-bg-sora/40 rounded-xl p-2 text-xs space-y-1 border border-border-sora/40">
+                            {order.items.map((it, idx) => (
+                              <div key={idx} className="flex justify-between items-center text-[11px]">
+                                <span className="text-text-sora font-medium truncate">
+                                  {it.quantity}x {it.name}
+                                </span>
+                                <span className="text-text-sora/60 font-mono ml-2">
+                                  {formatCurrency(it.subtotal)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
                         {/* Total, Envío y Estado de Pago */}
                         <div className="flex items-center justify-between pt-1 border-t border-border-sora/60">
                           <div className="text-[11px]">
@@ -1904,9 +2266,9 @@ export default function VentasPage() {
                           </span>
                         </div>
 
-                        {/* ACCIONES: EDITAR, CANCELAR, BORRAR Y WHATSAPP */}
-                        <div className="pt-2 border-t border-border-sora/40 flex items-center justify-between gap-1.5">
-                          <div className="flex items-center space-x-1">
+                        {/* ACCIONES: EDITAR, CANCELAR, BORRAR, RASTREO Y WHATSAPP */}
+                        <div className="pt-2 border-t border-border-sora/40 flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center space-x-1 flex-wrap gap-1">
                             {/* Botón Editar */}
                             <button
                               type="button"
@@ -1941,9 +2303,33 @@ export default function VentasPage() {
                               <Trash2 className="w-3.5 h-3.5" />
                               <span className="hidden sm:inline text-[11px]">Borrar</span>
                             </button>
+
+                            {/* Si está archivada: Opción de Restaurar a Cocina Activa */}
+                            {isOrderArchived && (
+                              <button
+                                type="button"
+                                onClick={() => handleUnarchiveOrder(order.id)}
+                                className="p-1.5 rounded-xl border border-indigo-200 text-indigo-700 hover:bg-indigo-50 text-xs font-semibold transition-colors flex items-center space-x-1"
+                                title="Restaurar a cocina activa"
+                              >
+                                <RefreshCw className="w-3.5 h-3.5" />
+                                <span className="text-[11px]">Restaurar</span>
+                              </button>
+                            )}
                           </div>
 
-                          <div className="flex items-center space-x-1.5 flex-shrink-0">
+                          <div className="flex items-center space-x-1.5 flex-wrap gap-1">
+                            {/* Descontar insumos manualmente de inventario */}
+                            <button
+                              type="button"
+                              onClick={() => handleDeductOrderStock(order)}
+                              className="inline-flex items-center space-x-1 px-2 py-1.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-[11px] font-semibold transition-all shadow-2xs"
+                              title="Descontar los insumos de esta orden del inventario"
+                            >
+                              <UtensilsCrossed className="w-3 h-3 text-amber-700" />
+                              <span className="hidden sm:inline">Descontar Insumos</span>
+                            </button>
+
                             {/* Link de Rastreo Público */}
                             <a
                               href={`/rastreo/${order.order_number}`}
@@ -1956,30 +2342,17 @@ export default function VentasPage() {
                               <span>Rastreo</span>
                             </a>
 
-                            {/* Notificación de WhatsApp / Recordatorio Futuro */}
-                            {isFutureDay ? (
-                              <a
-                                href={`https://wa.me/${cleanPhone}?text=${futureWhatsAppMsg}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-semibold transition-all shadow-xs active:scale-95"
-                                title="Enviar recordatorio de pedido futuro al cliente por WhatsApp"
-                              >
-                                <MessageCircle className="w-3.5 h-3.5" />
-                                <span>Recordar WhatsApp</span>
-                              </a>
-                            ) : (
-                              <a
-                                href={`https://wa.me/${cleanPhone}?text=${whatsappMsg}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-whatsapp hover:bg-[#20bd5a] text-white text-[11px] font-semibold transition-all shadow-xs active:scale-95"
-                                title="Enviar resumen y link de rastreo por WhatsApp"
-                              >
-                                <MessageCircle className="w-3.5 h-3.5" />
-                                <span>WhatsApp</span>
-                              </a>
-                            )}
+                            {/* Notificación regular de WhatsApp */}
+                            <a
+                              href={`https://wa.me/${cleanPhone}?text=${whatsappMsg}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-whatsapp hover:bg-[#20bd5a] text-white text-[11px] font-semibold transition-all shadow-xs active:scale-95"
+                              title="Enviar resumen y link de rastreo por WhatsApp"
+                            >
+                              <MessageCircle className="w-3.5 h-3.5" />
+                              <span>WhatsApp</span>
+                            </a>
                           </div>
                         </div>
                       </div>
@@ -1989,8 +2362,18 @@ export default function VentasPage() {
               ) : (
                 <div className="p-8 text-center text-xs text-text-sora/50 space-y-2">
                   <ShoppingBag className="w-8 h-8 mx-auto text-text-sora/20" />
-                  <p className="font-semibold text-text-sora/70">No hay pedidos registrados aún</p>
-                  <p>Crea el primer pedido con el formulario de la izquierda.</p>
+                  <p className="font-semibold text-text-sora/70">
+                    {historyTab === 'active'
+                      ? 'No hay pedidos activos pendientes en cocina'
+                      : historyTab === 'delivered_today'
+                      ? 'Aún no hay pedidos marcados como entregados hoy'
+                      : 'No se encontraron pedidos archivados'}
+                  </p>
+                  <p>
+                    {historyTab === 'active'
+                      ? 'Crea un nuevo pedido con el formulario o revisa la pestaña de Archivo.'
+                      : 'Los pedidos entregados se archivan aquí para mantener la pantalla ordenada.'}
+                  </p>
                 </div>
               )}
             </div>
@@ -2005,6 +2388,16 @@ export default function VentasPage() {
         menuItems={menuItems}
         onSaveMenuItems={handleSaveMenuItems}
       />
+
+      {/* Modal de Creación Rápida de Clientes desde el Autocompletado */}
+      {isNewClientModalOpen && (
+        <ClientModal
+          isOpen={isNewClientModalOpen}
+          onClose={() => setIsNewClientModalOpen(false)}
+          onSave={handleSaveNewClient}
+          initialClient={newClientInitialData}
+        />
+      )}
     </AppNavigation>
   );
 }
