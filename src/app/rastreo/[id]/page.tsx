@@ -7,6 +7,7 @@ import { Order, OrderStatus } from '@/types/database.types';
 import { isValidUuid } from '@/lib/storage';
 import { formatCurrency } from '@/lib/utils';
 import { playKitchenChime, triggerVibration } from '@/lib/audioAlerts';
+import { SORA_CONFIG } from '@/lib/constants';
 import {
   ChefHat,
   Flame,
@@ -216,7 +217,7 @@ export default function PublicOrderTrackingPage() {
     const text = encodeURIComponent(
       `¡Hola Sora Cocina Casera! Tengo una consulta sobre mi pedido #${order?.order_number || rawId}.`
     );
-    return `https://wa.me/18296395982?text=${text}`;
+    return `https://wa.me/${SORA_CONFIG.whatsappNumber}?text=${text}`;
   }, [order, rawId]);
 
   return (
@@ -293,7 +294,7 @@ export default function PublicOrderTrackingPage() {
               className="inline-flex items-center space-x-2 px-5 py-3 rounded-2xl bg-emerald-600 text-white font-semibold text-xs shadow-md shadow-emerald-600/20 hover:bg-emerald-700 transition-all active:scale-95"
             >
               <MessageCircle className="w-4 h-4" />
-              <span>Contactar a Sora por WhatsApp</span>
+              <span>Contactar a Sora por WhatsApp ({SORA_CONFIG.phoneDisplay})</span>
             </a>
           </div>
         ) : order ? (
@@ -537,7 +538,7 @@ export default function PublicOrderTrackingPage() {
                 className="w-full py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center justify-center space-x-2 shadow-lg shadow-emerald-600/20 active:scale-98 transition-all"
               >
                 <MessageCircle className="w-4 h-4" />
-                <span>¿Dudas con tu entrega? Escríbenos por WhatsApp</span>
+                <span>¿Dudas con tu entrega? Escríbenos al {SORA_CONFIG.phoneDisplay}</span>
               </a>
 
               <button
@@ -567,7 +568,7 @@ export default function PublicOrderTrackingPage() {
           Sora Cocina Casera
         </p>
         <p className="text-[10px] text-text-sora/50 mt-0.5">
-          Santo Domingo, República Dominicana • v1.2.2
+          {SORA_CONFIG.city} • WhatsApp: {SORA_CONFIG.phoneDisplay} • v1.2.2
         </p>
       </footer>
     </div>
