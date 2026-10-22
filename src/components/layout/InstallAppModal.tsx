@@ -88,7 +88,7 @@ export function InstallAppModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl max-w-md w-full border border-border-sora shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
         {/* Cabecera */}
         <div className="p-6 bg-gradient-to-br from-primary-sora/15 via-bg-sora to-amber-500/10 border-b border-border-sora relative">

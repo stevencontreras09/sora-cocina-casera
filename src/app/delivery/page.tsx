@@ -315,7 +315,7 @@ export default function DeliveryMobilePage() {
     <AppNavigation>
       <div className="max-w-md mx-auto space-y-4 pb-12 sm:max-w-xl md:max-w-2xl">
         {/* CABECERA ERGONÓMICA PARA REPARTIDOR (IPAD Y MÓVIL) */}
-        <div className="bg-white/95 backdrop-blur-md rounded-3xl p-4 sm:p-5 border border-border-sora shadow-sora sticky top-16 lg:top-4 z-20">
+        <div className="bg-white/95 dark:bg-[#141824]/95 backdrop-blur-md rounded-3xl p-4 sm:p-5 border border-border-sora dark:border-[#232B3E] shadow-sora sticky top-16 lg:top-4 z-10">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="w-12 h-12 rounded-2xl bg-primary-sora text-white flex items-center justify-center shadow-md shadow-primary-sora/25 flex-shrink-0">
@@ -323,15 +323,15 @@ export default function DeliveryMobilePage() {
               </div>
               <div className="min-w-0">
                 <div className="flex items-center space-x-1.5">
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/30">
                     Repartidor en Ruta
                   </span>
-                  <span className="text-[10px] text-text-sora/40 font-mono">DOP (RD$)</span>
+                  <span className="text-[10px] text-text-sora/40 dark:text-slate-400 font-mono">DOP (RD$)</span>
                 </div>
-                <h1 className="font-serif font-bold text-lg text-text-sora truncate leading-tight mt-0.5">
+                <h1 className="font-serif font-bold text-lg text-text-sora dark:text-white truncate leading-tight mt-0.5">
                   {profile?.full_name || 'Repartidor Sora'}
                 </h1>
-                <p className="text-[11px] text-text-sora/60 truncate">
+                <p className="text-[11px] text-text-sora/60 dark:text-slate-400 truncate">
                   {activeOrders.length} pedido(s) activo(s) para entregar
                 </p>
               </div>

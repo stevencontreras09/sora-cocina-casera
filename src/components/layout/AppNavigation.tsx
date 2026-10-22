@@ -155,6 +155,23 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
     }
   }, [isRouteAllowed, isDeactivated, isLoading, profile, visibleItems, router]);
 
+  // Bloquear scroll del fondo cuando el menú móvil está abierto
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [mobileMenuOpen]);
+
+  // Cerrar menú móvil automáticamente al cambiar de página
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
+
   const handleSignOut = async () => {
     try {
       setIsSigningOut(true);
@@ -166,18 +183,18 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen bg-bg-sora flex flex-col lg:flex-row">
+    <div className="min-h-screen bg-bg-sora dark:bg-[#0B0E14] flex flex-col lg:flex-row">
       {/* HEADER MÓVIL Y TABLET (IPAD VERTICAL) */}
-      <header className="lg:hidden bg-bg-sora border-b border-border-sora px-4 sm:px-6 py-3.5 flex items-center justify-between sticky top-0 z-30 shadow-sm backdrop-blur-md bg-bg-sora/95">
+      <header className="lg:hidden bg-bg-sora/95 dark:bg-[#0B0E14]/95 border-b border-border-sora dark:border-[#1E2536] px-4 sm:px-6 py-3.5 flex items-center justify-between sticky top-0 z-[60] shadow-sm backdrop-blur-md">
         <div className="flex items-center space-x-2.5">
           <div className="w-10 h-10 rounded-2xl overflow-hidden shadow-sm border border-primary-sora/15 bg-white flex items-center justify-center flex-shrink-0">
             <img src="/logo.jpg" alt="Sora Cocina Casera" className="w-full h-full object-cover" />
           </div>
           <div>
-            <h1 className="font-serif font-bold text-text-sora text-lg sm:text-xl tracking-tight leading-none">
+            <h1 className="font-serif font-bold text-text-sora dark:text-white text-lg sm:text-xl tracking-tight leading-none">
               Sora
             </h1>
-            <p className="text-[10px] text-text-sora/60 uppercase tracking-widest font-semibold mt-0.5">
+            <p className="text-[10px] text-text-sora/60 dark:text-slate-400 uppercase tracking-widest font-semibold mt-0.5">
               Cocina Casera
             </p>
           </div>
@@ -196,7 +213,7 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
           )}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2.5 rounded-xl text-text-sora hover:bg-border-sora/40 transition-colors"
+            className="p-2.5 rounded-xl text-text-sora dark:text-white hover:bg-border-sora/40 dark:hover:bg-white/10 transition-colors"
             aria-label="Abrir menú de navegación"
           >
             {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -206,20 +223,20 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
 
       {/* MENÚ MÓVIL Y TABLET DESPLEGABLE */}
       {mobileMenuOpen && (
-        <div className="lg:hidden fixed inset-0 top-[61px] bg-bg-sora/95 backdrop-blur-md z-20 flex flex-col justify-between p-6 overflow-y-auto border-b border-border-sora animate-in fade-in duration-150">
+        <div className="lg:hidden fixed inset-0 top-[61px] bg-bg-sora dark:bg-[#0B0E14] z-50 flex flex-col justify-between p-6 overflow-y-auto border-b border-border-sora dark:border-[#232B3E] animate-in fade-in duration-150">
           <div className="space-y-6 max-w-lg mx-auto w-full">
             {/* Info usuario */}
             {profile && (
-              <div className="p-4 rounded-2xl bg-white/80 border border-border-sora shadow-sm">
+              <div className="p-4 rounded-2xl bg-white/80 dark:bg-[#141824] border border-border-sora dark:border-[#232B3E] shadow-sm">
                 <div className="flex items-center space-x-3">
-                  <div className="w-11 h-11 rounded-2xl bg-primary-sora/15 text-primary-sora flex items-center justify-center font-bold text-base">
+                  <div className="w-11 h-11 rounded-2xl bg-primary-sora/15 dark:bg-primary-sora/20 text-primary-sora flex items-center justify-center font-bold text-base">
                     {profile.full_name?.charAt(0).toUpperCase() || 'U'}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-text-sora truncate text-sm">
+                    <p className="font-bold text-text-sora dark:text-white truncate text-sm">
                       {profile.full_name || user?.email}
                     </p>
-                    <p className="text-xs text-text-sora/60 truncate">{user?.email}</p>
+                    <p className="text-xs text-text-sora/60 dark:text-slate-400 truncate">{user?.email}</p>
                   </div>
                 </div>
                 {currentRoleInfo && (
@@ -237,7 +254,7 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
 
             {/* Pestañas permitidas */}
             <div className="space-y-2">
-              <p className="text-xs font-semibold text-text-sora/50 uppercase tracking-wider px-2">
+              <p className="text-xs font-semibold text-text-sora/50 dark:text-slate-400 uppercase tracking-wider px-2">
                 Menú Autorizado
               </p>
               {visibleItems.map((item) => {
@@ -251,7 +268,7 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
                     className={`flex items-center space-x-3.5 px-4 py-3.5 rounded-2xl transition-all ${
                       isActive
                         ? 'bg-primary-sora text-white shadow-md font-semibold'
-                        : 'text-text-sora/80 hover:bg-border-sora/50 hover:text-text-sora bg-white/50 border border-border-sora/40'
+                        : 'text-text-sora/80 dark:text-slate-200 hover:bg-border-sora/50 dark:hover:bg-white/10 hover:text-text-sora bg-white/50 dark:bg-[#141824] border border-border-sora/40 dark:border-[#232B3E]'
                     }`}
                   >
                     <Icon className="w-5 h-5 flex-shrink-0" />
@@ -259,7 +276,7 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
                       <span className="text-sm">{item.name}</span>
                       <span
                         className={`text-xs ${
-                          isActive ? 'text-white/80' : 'text-text-sora/50'
+                          isActive ? 'text-white/80' : 'text-text-sora/50 dark:text-slate-400'
                         }`}
                       >
                         {item.description}
@@ -467,7 +484,7 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
       />
 
       {/* CONTENIDO PRINCIPAL CON PROTECCIÓN EN TIEMPO REAL */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto relative">
+      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto relative z-0 isolate">
         <SystemUpdateNotice />
         <KitchenAlertBanner />
         <div className="p-4 sm:p-6 md:p-8 max-w-7xl w-full mx-auto">

@@ -35,7 +35,7 @@ export function ChangelogModal({ isOpen, onClose }: ChangelogModalProps) {
     HISTORICAL_RELEASES[0];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
       <div className="bg-white dark:bg-[#141824] rounded-3xl max-w-2xl w-full border border-border-sora dark:border-[#232B3E] shadow-2xl overflow-hidden my-auto flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
         
         {/* Encabezado */}
