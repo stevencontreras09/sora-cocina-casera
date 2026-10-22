@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { ROLE_INFO, UserRole, DEFAULT_ROLE_PERMISSIONS } from '@/types/database.types';
 import { getStoredUserPermissions } from '@/lib/storage';
+import { InstallAppModal } from '@/components/layout/InstallAppModal';
 import {
   ChefHat,
   Mail,
@@ -15,6 +16,7 @@ import {
   Loader2,
   ShieldCheck,
   CheckCircle2,
+  Download,
 } from 'lucide-react';
 
 function LoginForm() {
@@ -33,6 +35,7 @@ function LoginForm() {
       : null
   );
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
 
   const supabase = createClient();
 
@@ -253,7 +256,7 @@ function LoginForm() {
           </div>
 
           {/* Botón de Enviar */}
-          <div className="pt-2">
+          <div className="pt-2 space-y-2.5">
             <button
               type="submit"
               disabled={isLoading}
@@ -268,9 +271,24 @@ function LoginForm() {
                 <span>Ingresar al Sistema</span>
               )}
             </button>
+
+            {/* Botón Instalar App */}
+            <button
+              type="button"
+              onClick={() => setIsInstallModalOpen(true)}
+              className="w-full flex items-center justify-center space-x-2 py-2.5 px-3 rounded-xl border border-border-sora bg-bg-sora/60 hover:bg-bg-sora text-text-sora/80 text-xs font-semibold transition-all hover:border-primary-sora/40"
+            >
+              <Download className="w-3.5 h-3.5 text-primary-sora" />
+              <span>Instalar Sora en este Dispositivo</span>
+            </button>
           </div>
         </form>
       </div>
+
+      <InstallAppModal
+        isOpen={isInstallModalOpen}
+        onClose={() => setIsInstallModalOpen(false)}
+      />
 
       {/* Guía informativa de Roles del Sistema */}
       <div className="mt-6 p-4 rounded-2xl bg-white/50 border border-border-sora/60 text-xs text-text-sora/70">

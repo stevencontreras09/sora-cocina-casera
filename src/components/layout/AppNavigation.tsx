@@ -8,6 +8,7 @@ import { ROLE_INFO, UserRole, AppPermission } from '@/types/database.types';
 import { SystemUpdateNotice } from './SystemUpdateNotice';
 import { KitchenAlertBanner } from '@/components/alerts/KitchenAlertBanner';
 import { AutoSaveStatusIndicator } from './AutoSaveStatusIndicator';
+import { InstallAppModal } from './InstallAppModal';
 import {
   LayoutDashboard,
   Receipt,
@@ -23,6 +24,7 @@ import {
   Shield,
   UserCog,
   ShieldAlert,
+  Download,
 } from 'lucide-react';
 
 interface NavItem {
@@ -99,6 +101,7 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [installModalOpen, setInstallModalOpen] = useState(false);
 
   // Filtrar elementos de navegación basados en los permisos asignados al usuario
   const visibleItems = NAVIGATION_ITEMS.filter((item) =>
@@ -246,6 +249,18 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
 
           {/* Botón cerrar sesión en móvil / tablet */}
           <div className="pt-6 border-t border-border-sora max-w-lg mx-auto w-full text-center">
+            {/* Botón de Instalar App en Celular */}
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setInstallModalOpen(true);
+              }}
+              className="w-full mb-3 flex items-center justify-center space-x-2 px-4 py-3 rounded-2xl bg-primary-sora/15 text-primary-sora hover:bg-primary-sora hover:text-white font-bold text-xs border border-primary-sora/30 active:scale-98 transition-all"
+            >
+              <Download className="w-4 h-4 animate-bounce" />
+              <span>📲 Instalar Sora en tu Teléfono</span>
+            </button>
+
             <button
               onClick={handleSignOut}
               disabled={isSigningOut}
@@ -335,8 +350,17 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
 
-        {/* Footer Sidebar: Botón visible de Cerrar Sesión */}
-        <div className="pt-4 border-t border-border-sora text-center">
+        {/* Footer Sidebar: Botón Instalar y Cerrar Sesión */}
+        <div className="pt-4 border-t border-border-sora text-center space-y-2">
+          <button
+            onClick={() => setInstallModalOpen(true)}
+            className="w-full flex items-center justify-center space-x-2 px-3 py-2 rounded-xl bg-primary-sora/10 hover:bg-primary-sora hover:text-white text-primary-sora transition-all text-xs font-bold border border-primary-sora/25 shadow-2xs group"
+            title="Instalar Sora en tu computadora o laptop"
+          >
+            <Download className="w-3.5 h-3.5 group-hover:animate-bounce" />
+            <span>Instalar Aplicación</span>
+          </button>
+
           <button
             onClick={handleSignOut}
             disabled={isSigningOut}
@@ -346,11 +370,17 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
             <LogOut className="w-4 h-4" />
             <span>{isSigningOut ? 'Cerrando sesión...' : 'Cerrar sesión'}</span>
           </button>
-          <span className="text-[10px] text-text-sora/40 font-mono mt-2 block">
+          <span className="text-[10px] text-text-sora/40 font-mono mt-1 block">
             Sora Cocina Casera • v1.2.3
           </span>
         </div>
       </aside>
+
+      {/* MODAL DE INSTALACIÓN ASISTIDA (PWA PARA IOS, ANDROID, PC Y MAC) */}
+      <InstallAppModal
+        isOpen={installModalOpen}
+        onClose={() => setInstallModalOpen(false)}
+      />
 
       {/* CONTENIDO PRINCIPAL CON PROTECCIÓN EN TIEMPO REAL */}
       <main className="flex-1 flex flex-col min-w-0 overflow-y-auto relative">
