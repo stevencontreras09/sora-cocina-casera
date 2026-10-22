@@ -1,0 +1,1059 @@
+[
+  {
+    "id": "63cdfe3c-a033-4473-95be-b666763e5485",
+    "order_number": "HIST-001",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-1",
+        "name": "Lasaña Casera Mixta (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 350,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-08",
+    "created_at": "2026-10-08T13:30:00.000Z",
+    "updated_at": "2026-10-08T13:30:00.000Z"
+  },
+  {
+    "id": "08aeed54-2cfd-4dd4-a66f-cd83d729fef4",
+    "order_number": "HIST-002",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-2",
+        "name": "Lasaña Casera de Pollo (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 350,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-09",
+    "created_at": "2026-10-09T13:30:00.000Z",
+    "updated_at": "2026-10-09T13:30:00.000Z"
+  },
+  {
+    "id": "8c78bb6b-ca9a-4653-a450-19bb99b5d7d4",
+    "order_number": "HIST-003",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-3",
+        "name": "Lasaña Casera de Pollo (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 350,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-08",
+    "created_at": "2026-10-08T13:30:00.000Z",
+    "updated_at": "2026-10-08T13:30:00.000Z"
+  },
+  {
+    "id": "8f4d669b-ae58-4872-9ff9-d58dbcd47e80",
+    "order_number": "HIST-004",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-4",
+        "name": "Lasaña Casera de Pollo (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 350,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-08",
+    "created_at": "2026-10-08T13:30:00.000Z",
+    "updated_at": "2026-10-08T13:30:00.000Z"
+  },
+  {
+    "id": "5b765cfc-b461-4765-b33a-8a1c6c086a3a",
+    "order_number": "HIST-005",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-5",
+        "name": "Lasaña Casera de Res (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 350,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-09",
+    "created_at": "2026-10-09T13:30:00.000Z",
+    "updated_at": "2026-10-09T13:30:00.000Z"
+  },
+  {
+    "id": "f4de3dd6-6be3-4981-89a2-0856a51be68c",
+    "order_number": "HIST-006",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-6a",
+        "name": "Lasaña Casera de Pollo (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      },
+      {
+        "id": "h-6b",
+        "name": "Lasaña Casera de Res (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 700,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-08",
+    "created_at": "2026-10-08T13:30:00.000Z",
+    "updated_at": "2026-10-08T13:30:00.000Z"
+  },
+  {
+    "id": "bfce9532-f243-4277-abd9-289175c01e8a",
+    "order_number": "HIST-007",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-7a",
+        "name": "Lasaña Casera de Pollo (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      },
+      {
+        "id": "h-7b",
+        "name": "Lasaña Casera de Res (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 700,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-08",
+    "created_at": "2026-10-08T13:30:00.000Z",
+    "updated_at": "2026-10-08T13:30:00.000Z"
+  },
+  {
+    "id": "770cd5ee-3d57-468c-8c80-a85f7190b746",
+    "order_number": "HIST-008",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-8",
+        "name": "Lasaña Casera de Pollo (1 lb)",
+        "quantity": 2,
+        "price": 350,
+        "subtotal": 700
+      }
+    ],
+    "total": 700,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-08",
+    "created_at": "2026-10-08T13:30:00.000Z",
+    "updated_at": "2026-10-08T13:30:00.000Z"
+  },
+  {
+    "id": "ccac5a20-eff1-49a5-b79b-b5d294e209e1",
+    "order_number": "HIST-009",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-9",
+        "name": "Lasaña Casera de Res (1 lb)",
+        "quantity": 4,
+        "price": 350,
+        "subtotal": 1400
+      }
+    ],
+    "total": 1400,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-09",
+    "created_at": "2026-10-09T13:30:00.000Z",
+    "updated_at": "2026-10-09T13:30:00.000Z"
+  },
+  {
+    "id": "dea901c7-c6db-459c-88f0-67ed0f37f67e",
+    "order_number": "HIST-010",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-10",
+        "name": "Lasaña Casera de Pollo (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 350,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-09",
+    "created_at": "2026-10-09T13:30:00.000Z",
+    "updated_at": "2026-10-09T13:30:00.000Z"
+  },
+  {
+    "id": "317134af-545d-4437-ae7b-37ec0b25f8e0",
+    "order_number": "HIST-011",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-11",
+        "name": "Lasaña Casera de Pollo (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 350,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-08",
+    "created_at": "2026-10-08T13:30:00.000Z",
+    "updated_at": "2026-10-08T13:30:00.000Z"
+  },
+  {
+    "id": "3b0d95d6-84ea-44f3-a666-e0aede36ff6d",
+    "order_number": "HIST-012",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-12",
+        "name": "Lasaña Casera de Pollo (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 350,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-08",
+    "created_at": "2026-10-08T13:30:00.000Z",
+    "updated_at": "2026-10-08T13:30:00.000Z"
+  },
+  {
+    "id": "7dea0ce0-fd4a-45a8-a897-1138c9bd7ee1",
+    "order_number": "HIST-013",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-13a",
+        "name": "Lasaña Casera de Pollo (2 lb)",
+        "quantity": 1,
+        "price": 700,
+        "subtotal": 700
+      },
+      {
+        "id": "h-13b",
+        "name": "Lasaña Casera de Res (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 1050,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-09",
+    "created_at": "2026-10-09T13:30:00.000Z",
+    "updated_at": "2026-10-09T13:30:00.000Z"
+  },
+  {
+    "id": "6c462b93-9489-4fc6-a359-0b2a0ebad92d",
+    "order_number": "HIST-014",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-14",
+        "name": "Lasaña Casera de Pollo (2 lb)",
+        "quantity": 1,
+        "price": 700,
+        "subtotal": 700
+      }
+    ],
+    "total": 700,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-09",
+    "created_at": "2026-10-09T13:30:00.000Z",
+    "updated_at": "2026-10-09T13:30:00.000Z"
+  },
+  {
+    "id": "2d2ed8ed-88c6-46e5-8393-1f742e44e592",
+    "order_number": "HIST-015",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-15",
+        "name": "Lasaña Casera de Res (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 350,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-09",
+    "created_at": "2026-10-09T13:30:00.000Z",
+    "updated_at": "2026-10-09T13:30:00.000Z"
+  },
+  {
+    "id": "2bb4253c-6555-4baa-80ec-d861eccaca96",
+    "order_number": "HIST-016",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-16",
+        "name": "Lasaña Casera de Pollo (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 350,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-09",
+    "created_at": "2026-10-09T13:30:00.000Z",
+    "updated_at": "2026-10-09T13:30:00.000Z"
+  },
+  {
+    "id": "93b51c49-20a8-4b82-9bf8-13652aea9951",
+    "order_number": "HIST-017",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-17",
+        "name": "Lasaña Casera de Res (2 lb)",
+        "quantity": 1,
+        "price": 700,
+        "subtotal": 700
+      }
+    ],
+    "total": 700,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-09",
+    "created_at": "2026-10-09T13:30:00.000Z",
+    "updated_at": "2026-10-09T13:30:00.000Z"
+  },
+  {
+    "id": "fcef6cb6-7f51-4b59-9999-d421a26ed82c",
+    "order_number": "HIST-018",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-18",
+        "name": "Lasaña Casera Mixta (1 lb)",
+        "quantity": 2,
+        "price": 350,
+        "subtotal": 700
+      }
+    ],
+    "total": 700,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-09",
+    "created_at": "2026-10-09T13:30:00.000Z",
+    "updated_at": "2026-10-09T13:30:00.000Z"
+  },
+  {
+    "id": "6844ce4f-6a68-4b4d-9b22-0d4151795895",
+    "order_number": "HIST-019",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-19",
+        "name": "Lasaña Casera de Pollo (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 350,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-09",
+    "created_at": "2026-10-09T13:30:00.000Z",
+    "updated_at": "2026-10-09T13:30:00.000Z"
+  },
+  {
+    "id": "4b368af3-6c94-4b6b-9b16-5673a84a5b1a",
+    "order_number": "HIST-020",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-20",
+        "name": "Lasaña Casera de Pollo (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 350,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-09",
+    "created_at": "2026-10-09T13:30:00.000Z",
+    "updated_at": "2026-10-09T13:30:00.000Z"
+  },
+  {
+    "id": "f85a0467-8186-448b-9955-d5215aca4078",
+    "order_number": "HIST-021",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-21",
+        "name": "Lasaña Casera de Pollo (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 350,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-09",
+    "created_at": "2026-10-09T13:30:00.000Z",
+    "updated_at": "2026-10-09T13:30:00.000Z"
+  },
+  {
+    "id": "a0b6983e-b779-40d9-aab1-b9131a9a8172",
+    "order_number": "HIST-022",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-22",
+        "name": "Lasaña Casera de Pollo (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 350,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-12",
+    "created_at": "2026-10-12T13:30:00.000Z",
+    "updated_at": "2026-10-12T13:30:00.000Z"
+  },
+  {
+    "id": "dc5b4c10-ea3f-4956-8076-543cb2587556",
+    "order_number": "HIST-023",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-23",
+        "name": "Lasaña Casera de Res (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 350,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-13",
+    "created_at": "2026-10-13T13:30:00.000Z",
+    "updated_at": "2026-10-13T13:30:00.000Z"
+  },
+  {
+    "id": "d53af919-a34e-45b2-bc7e-ce632c79c4c9",
+    "order_number": "HIST-024",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-24",
+        "name": "Lasaña Casera de Res (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 350,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-13",
+    "created_at": "2026-10-13T13:30:00.000Z",
+    "updated_at": "2026-10-13T13:30:00.000Z"
+  },
+  {
+    "id": "bf6920ac-a383-445e-bd26-a91fd5fb1a9e",
+    "order_number": "HIST-025",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-25",
+        "name": "Lasaña Casera de Pollo (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 350,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-13",
+    "created_at": "2026-10-13T13:30:00.000Z",
+    "updated_at": "2026-10-13T13:30:00.000Z"
+  },
+  {
+    "id": "4f61cd6c-1d62-48e0-af6a-6ff0c8357b08",
+    "order_number": "HIST-026",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-26",
+        "name": "Lasaña Casera de Pollo (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 350,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-13",
+    "created_at": "2026-10-13T13:30:00.000Z",
+    "updated_at": "2026-10-13T13:30:00.000Z"
+  },
+  {
+    "id": "15ed6bc6-a6c1-43ec-8b20-55569c4f0ff5",
+    "order_number": "HIST-027",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-27",
+        "name": "Lasaña Casera de Pollo (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 350,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-14",
+    "created_at": "2026-10-14T13:30:00.000Z",
+    "updated_at": "2026-10-14T13:30:00.000Z"
+  },
+  {
+    "id": "3d54b15d-cd29-4b23-b2de-75e213bcc67f",
+    "order_number": "HIST-028",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-28",
+        "name": "Lasaña Casera de Res (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 350,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-12",
+    "created_at": "2026-10-12T13:30:00.000Z",
+    "updated_at": "2026-10-12T13:30:00.000Z"
+  },
+  {
+    "id": "8b0fc2c3-acd1-4559-878f-3bf32f3ebda3",
+    "order_number": "HIST-029",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-29",
+        "name": "Lasaña Casera de Pollo (2 lb)",
+        "quantity": 1,
+        "price": 700,
+        "subtotal": 700
+      }
+    ],
+    "total": 700,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-18",
+    "created_at": "2026-10-18T13:30:00.000Z",
+    "updated_at": "2026-10-18T13:30:00.000Z"
+  },
+  {
+    "id": "94ded59f-ffb9-47e3-933d-90a8e25ea3c0",
+    "order_number": "HIST-030",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-30",
+        "name": "Lasaña Casera de Pollo (2 lb)",
+        "quantity": 1,
+        "price": 700,
+        "subtotal": 700
+      }
+    ],
+    "total": 700,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-18",
+    "created_at": "2026-10-18T13:30:00.000Z",
+    "updated_at": "2026-10-18T13:30:00.000Z"
+  },
+  {
+    "id": "d1e6554a-b7ec-4b1f-8ddf-24aade445424",
+    "order_number": "HIST-031",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-31",
+        "name": "Lasaña Casera de Pollo (2 lb) [Tarifa Familiar]",
+        "quantity": 4,
+        "price": 600,
+        "subtotal": 2400
+      }
+    ],
+    "total": 2400,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-09",
+    "created_at": "2026-10-09T13:30:00.000Z",
+    "updated_at": "2026-10-09T13:30:00.000Z"
+  },
+  {
+    "id": "87730024-eee9-49e2-95e0-f17aafa2a647",
+    "order_number": "HIST-032",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-32",
+        "name": "Lasaña Casera de Pollo (1 lb) [Tarifa Familiar]",
+        "quantity": 1,
+        "price": 300,
+        "subtotal": 300
+      }
+    ],
+    "total": 300,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-09",
+    "created_at": "2026-10-09T13:30:00.000Z",
+    "updated_at": "2026-10-09T13:30:00.000Z"
+  },
+  {
+    "id": "7e3f1a4a-b74e-4693-b1bd-a388b290b698",
+    "order_number": "HIST-033",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-33a",
+        "name": "Lasaña Casera de Pollo (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      },
+      {
+        "id": "h-33b",
+        "name": "Lasaña Casera de Res (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 700,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-10",
+    "created_at": "2026-10-10T13:30:00.000Z",
+    "updated_at": "2026-10-10T13:30:00.000Z"
+  },
+  {
+    "id": "7fb042e3-edc1-4bea-b851-8fc28dc7a8bb",
+    "order_number": "HIST-034",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-34",
+        "name": "Lasaña Casera de Res (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 350,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-15",
+    "created_at": "2026-10-15T13:30:00.000Z",
+    "updated_at": "2026-10-15T13:30:00.000Z"
+  },
+  {
+    "id": "f58ab8af-26bf-4f1a-81fb-89cc9e89def4",
+    "order_number": "HIST-035",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-35",
+        "name": "Lasaña Casera de Pollo (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 350,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-16",
+    "created_at": "2026-10-16T13:30:00.000Z",
+    "updated_at": "2026-10-16T13:30:00.000Z"
+  },
+  {
+    "id": "0f2ccf04-39da-4928-9b6f-750109730138",
+    "order_number": "HIST-036",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-36a",
+        "name": "Lasaña Casera de Res (2 lb)",
+        "quantity": 1,
+        "price": 700,
+        "subtotal": 700
+      },
+      {
+        "id": "h-36b",
+        "name": "Lasaña Casera de Res (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      },
+      {
+        "id": "h-36c",
+        "name": "Lasaña Casera de Pollo (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 1400,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-16",
+    "created_at": "2026-10-16T13:30:00.000Z",
+    "updated_at": "2026-10-16T13:30:00.000Z"
+  },
+  {
+    "id": "57c76229-214a-4d44-a945-89390c752097",
+    "order_number": "HIST-037",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-37",
+        "name": "Lasaña Casera de Res (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 350,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-16",
+    "created_at": "2026-10-16T13:30:00.000Z",
+    "updated_at": "2026-10-16T13:30:00.000Z"
+  },
+  {
+    "id": "68e12495-e164-4111-9759-49d90f9fefb5",
+    "order_number": "HIST-038",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-38",
+        "name": "Lasaña Casera de Pollo (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 350,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-16",
+    "created_at": "2026-10-16T13:30:00.000Z",
+    "updated_at": "2026-10-16T13:30:00.000Z"
+  },
+  {
+    "id": "fb552ba3-b25b-406b-a14f-ac9eff17a03d",
+    "order_number": "HIST-039",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-39",
+        "name": "Lasaña Casera de Res (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 350,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-16",
+    "created_at": "2026-10-16T13:30:00.000Z",
+    "updated_at": "2026-10-16T13:30:00.000Z"
+  },
+  {
+    "id": "33736f7e-88ed-47ba-a246-533d06026f9b",
+    "order_number": "HIST-040",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-40a",
+        "name": "Lasaña Casera de Pollo (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      },
+      {
+        "id": "h-40b",
+        "name": "Lasaña Casera de Res (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 700,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-16",
+    "created_at": "2026-10-16T13:30:00.000Z",
+    "updated_at": "2026-10-16T13:30:00.000Z"
+  },
+  {
+    "id": "7ecb0842-7b98-4d9f-8e0b-52de5080beff",
+    "order_number": "HIST-041",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-41",
+        "name": "Lasaña Casera de Pollo (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 350,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-16",
+    "created_at": "2026-10-16T13:30:00.000Z",
+    "updated_at": "2026-10-16T13:30:00.000Z"
+  },
+  {
+    "id": "ac2bfeed-dc76-4297-826f-efea4c49eb20",
+    "order_number": "HIST-042",
+    "client_name": "Venta Mostrador",
+    "client_phone": "N/A",
+    "address": "Retiro en Local (Cocina Sora)",
+    "address_label": "Retiro en Local",
+    "items": [
+      {
+        "id": "h-42",
+        "name": "Lasaña Casera de Res (1 lb)",
+        "quantity": 1,
+        "price": 350,
+        "subtotal": 350
+      }
+    ],
+    "total": 350,
+    "payment_method": "efectivo",
+    "payment_status": "pagado",
+    "status": "Entregado",
+    "delivery_date": "2026-10-16",
+    "created_at": "2026-10-16T13:30:00.000Z",
+    "updated_at": "2026-10-16T13:30:00.000Z"
+  }
+]
