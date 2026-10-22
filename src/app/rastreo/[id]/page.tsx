@@ -44,23 +44,91 @@ export default function PublicOrderTrackingPage() {
 
     try {
       const decodedId = decodeURIComponent(rawId).trim();
-      let query = supabase.from('orders').select('*');
+      let foundOrder: Order | null = null;
 
+      // Intento A: Si es un UUID válido, buscar por ID primario
       if (isValidUuid(decodedId)) {
-        query = query.eq('id', decodedId);
-      } else {
-        // Buscar por número de orden exacto o con prefijo
-        query = query.or(`order_number.eq.${decodedId},order_number.ilike.%${decodedId}%`);
+        const { data: byId } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('id', decodedId)
+          .maybeSingle();
+
+        if (byId) {
+          foundOrder = byId as Order;
+        }
       }
 
-      const { data, error } = await query.order('created_at', { ascending: false }).limit(1);
+      // Intento B: Buscar por número de orden exacto (ej: SORA-6129)
+      if (!foundOrder) {
+        try {
+          const { data: byOrderNum } = await supabase
+            .from('orders')
+            .select('*')
+            .eq('order_number', decodedId)
+            .limit(1);
 
-      if (error || !data || data.length === 0) {
+          if (byOrderNum && byOrderNum.length > 0) {
+            foundOrder = byOrderNum[0] as Order;
+          }
+        } catch (_) {
+          // Si la columna order_number aún no existe en Supabase, ignorar y pasar a los siguientes intentos
+        }
+      }
+
+      // Intento C: Buscar por coincidencia parcial o por sufijo numérico (ej: 6129)
+      if (!foundOrder) {
+        try {
+          const numericPart = decodedId.replace(/[^0-9]/g, '');
+          if (numericPart) {
+            const { data: byIlike } = await supabase
+              .from('orders')
+              .select('*')
+              .ilike('order_number', `%${numericPart}%`)
+              .order('created_at', { ascending: false })
+              .limit(1);
+
+            if (byIlike && byIlike.length > 0) {
+              foundOrder = byIlike[0] as Order;
+            }
+          }
+        } catch (_) {}
+      }
+
+      // Intento D: Fallback de contingencia con almacenamiento local si se prueba en el mismo navegador
+      if (!foundOrder) {
+        try {
+          const localOrders = typeof window !== 'undefined'
+            ? JSON.parse(localStorage.getItem('sora_orders') || '[]')
+            : [];
+          const matched = localOrders.find((o: any) =>
+            o.id === decodedId ||
+            (o.order_number && o.order_number.toLowerCase() === decodedId.toLowerCase()) ||
+            (o.order_number && decodedId.includes(o.order_number))
+          );
+          if (matched) {
+            foundOrder = matched as Order;
+          }
+        } catch (_) {}
+      }
+
+      if (foundOrder) {
+        // Normalizar metadatos si vienen dentro de items._metadata
+        let finalOrder = { ...foundOrder };
+        if (!finalOrder.order_number && Array.isArray(finalOrder.items) && (finalOrder.items[0] as any)?._metadata) {
+          const meta = (finalOrder.items[0] as any)._metadata;
+          finalOrder.order_number = meta.order_number || finalOrder.order_number;
+          finalOrder.client_name = meta.client_name || finalOrder.client_name;
+          finalOrder.client_phone = meta.client_phone || finalOrder.client_phone;
+          finalOrder.address = meta.address || finalOrder.address;
+        }
+
+        setOrder(finalOrder);
+        setNotFound(false);
+        setLastUpdated(new Date());
+      } else {
         setNotFound(true);
         setOrder(null);
-      } else {
-        setOrder(data[0] as Order);
-        setLastUpdated(new Date());
       }
     } catch (err) {
       console.warn('Error al buscar orden pública:', err);

@@ -658,7 +658,37 @@ export default function VentasPage() {
 
         const { error } = await supabase.from('orders').insert([supabasePayload]);
         if (error) {
-          console.warn('Nota Supabase orders:', error.message);
+          console.warn('Nota Supabase orders insert:', error.message);
+          // Si la tabla orders en Supabase aún no tiene todas las columnas, reintentar con las columnas existentes
+          if (error.code === '42703') {
+            const fallbackItems = [
+              {
+                _metadata: {
+                  order_number: orderNumber,
+                  client_name: currentClient.name,
+                  client_phone: currentClient.phone,
+                  address: currentAddress?.address || 'Retiro en local',
+                  address_reference: currentAddress?.reference || null,
+                  notes: notes || null,
+                },
+                ...(items[0] || { name: 'Comanda de Cocina', quantity: 1, price: totalCalculated }),
+              },
+              ...items.slice(1),
+            ];
+
+            const fallbackPayload: any = {
+              id: newOrderId,
+              total: totalCalculated,
+              payment_method: paymentMethod,
+              payment_status: paymentStatus,
+              status: 'Pendiente',
+              items: fallbackItems,
+            };
+            if (isValidUuid(currentClient.id)) fallbackPayload.client_id = currentClient.id;
+            if (isValidUuid(deliveryUserId)) fallbackPayload.delivery_user_id = deliveryUserId;
+
+            await supabase.from('orders').insert([fallbackPayload]);
+          }
         }
       } catch (err) {
         console.warn('Orden guardada en caché local persistente');
