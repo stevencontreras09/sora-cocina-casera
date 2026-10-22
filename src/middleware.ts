@@ -5,10 +5,11 @@ import { ROLE_INFO, UserRole, DEFAULT_ROLE_PERMISSIONS, AppPermission } from '@/
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Ignorar peticiones a archivos estáticos, api interna o favicon
+  // Ignorar peticiones a archivos estáticos, api interna, favicon o link público de rastreo
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api') ||
+    pathname.startsWith('/rastreo') ||
     pathname.includes('.') ||
     pathname === '/favicon.ico'
   ) {

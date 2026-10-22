@@ -144,6 +144,22 @@ export default function DashboardPage() {
     }
 
     fetchDashboardData();
+
+    // Sincronización en tiempo real con Supabase WebSockets para el Dashboard
+    const channel = supabase
+      .channel('dashboard-orders-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        () => {
+          fetchDashboardData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [supabase]);
 
   return (

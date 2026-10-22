@@ -185,6 +185,64 @@ export default function VentasPage() {
 
   useEffect(() => {
     loadData();
+
+    // Sincronización en tiempo real vía WebSockets para la tabla 'orders'
+    const channel = supabase
+      .channel('ventas-orders-realtime')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'orders' },
+        (payload: any) => {
+          if (payload.new) {
+            const incoming = payload.new as Order;
+            setOrders((prev) => {
+              if (prev.some((o) => o.id === incoming.id)) return prev;
+              const next = [incoming, ...prev];
+              saveStoredOrders(next);
+              return next;
+            });
+            triggerKitchenAlert(
+              '¡Nueva Orden en Cocina!',
+              `Pedido #${incoming.order_number || ''} para ${incoming.client_name || 'Cliente'}. Total: RD$ ${incoming.total || 0}`,
+              'new_order',
+              incoming.order_number
+            );
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'orders' },
+        (payload: any) => {
+          if (payload.new) {
+            const incoming = payload.new as Order;
+            setOrders((prev) => {
+              const next = prev.map((o) => (o.id === incoming.id ? { ...o, ...incoming } : o));
+              saveStoredOrders(next);
+              return next;
+            });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'orders' },
+        (payload: any) => {
+          if (payload.old) {
+            const deletedId = payload.old.id;
+            setOrders((prev) => {
+              const next = prev.filter((o) => o.id !== deletedId);
+              saveStoredOrders(next);
+              return next;
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase]);
 
@@ -1393,9 +1451,14 @@ export default function VentasPage() {
                   {orders.map((order) => {
                     const cleanPhone = cleanPhoneNumber(order.client_phone);
                     const orderFee = order.delivery_fee || 0;
+                    const trackingOrigin =
+                      typeof window !== 'undefined'
+                        ? window.location.origin
+                        : 'https://sora-cocina-casera-git-main-pppt1.vercel.app';
+                    const trackingUrl = `${trackingOrigin}/rastreo/${order.order_number}`;
 
                     const whatsappMsg = encodeURIComponent(
-                      `¡Hola ${order.client_name}! 🍲 Tu pedido #${order.order_number} en Sora Cocina Casera:\n` +
+                      `¡Hola ${order.client_name}! 🍲 Tu pedido #${order.order_number} en Sora Cocina Casera:\n\n` +
                         (order.items || [])
                           .map((it) => `• ${it.quantity}x ${it.name} (${formatCurrency(it.subtotal)})`)
                           .join('\n') +
@@ -1403,6 +1466,7 @@ export default function VentasPage() {
                         `\n💰 Total: ${formatCurrency(order.total)}` +
                         (order.delivery_time ? `\n⏰ Horario de entrega: ${order.delivery_time}` : '') +
                         `\n📍 Dirección: ${order.address}` +
+                        `\n\n🛵 Sigue el estado de tu pedido en vivo aquí:\n👉 ${trackingUrl}` +
                         `\n\n¡Muchas gracias por elegir Sora!`
                     );
 
@@ -1541,17 +1605,31 @@ export default function VentasPage() {
                             </button>
                           </div>
 
-                          {/* Notificación de WhatsApp */}
-                          <a
-                            href={`https://wa.me/${cleanPhone}?text=${whatsappMsg}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-whatsapp hover:bg-[#20bd5a] text-white text-[11px] font-semibold transition-all shadow-xs active:scale-95 flex-shrink-0"
-                            title="Enviar resumen por WhatsApp"
-                          >
-                            <MessageCircle className="w-3.5 h-3.5" />
-                            <span>WhatsApp</span>
-                          </a>
+                          <div className="flex items-center space-x-1.5 flex-shrink-0">
+                            {/* Link de Rastreo Público */}
+                            <a
+                              href={`/rastreo/${order.order_number}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl border border-primary-sora/30 bg-primary-sora/5 hover:bg-primary-sora/15 text-primary-sora text-[11px] font-semibold transition-all shadow-2xs active:scale-95"
+                              title="Ver pantalla de rastreo en vivo del cliente"
+                            >
+                              <Compass className="w-3.5 h-3.5" />
+                              <span>Rastreo</span>
+                            </a>
+
+                            {/* Notificación de WhatsApp */}
+                            <a
+                              href={`https://wa.me/${cleanPhone}?text=${whatsappMsg}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-whatsapp hover:bg-[#20bd5a] text-white text-[11px] font-semibold transition-all shadow-xs active:scale-95"
+                              title="Enviar resumen y link de rastreo por WhatsApp"
+                            >
+                              <MessageCircle className="w-3.5 h-3.5" />
+                              <span>WhatsApp</span>
+                            </a>
+                          </div>
                         </div>
                       </div>
                     );

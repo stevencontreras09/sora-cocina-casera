@@ -255,7 +255,7 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
               <span>{isSigningOut ? 'Cerrando sesión...' : 'Cerrar sesión'}</span>
             </button>
             <span className="text-[10px] text-text-sora/40 font-mono mt-2.5 block">
-              Sora Cocina Casera • v1.2.1
+              Sora Cocina Casera • v1.2.2
             </span>
           </div>
         </div>
@@ -347,7 +347,7 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
             <span>{isSigningOut ? 'Cerrando sesión...' : 'Cerrar sesión'}</span>
           </button>
           <span className="text-[10px] text-text-sora/40 font-mono mt-2 block">
-            Sora Cocina Casera • v1.2.1
+            Sora Cocina Casera • v1.2.2
           </span>
         </div>
       </aside>

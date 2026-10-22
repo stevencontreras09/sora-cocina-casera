@@ -21,10 +21,10 @@ export function SystemUpdateNotice() {
   const [isBannerVisible, setIsBannerVisible] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Leer estado de visibilidad del banner desde localStorage para la v1.2.1
+  // Leer estado de visibilidad del banner desde localStorage para la v1.2.2
   useEffect(() => {
     try {
-      const dismissed = localStorage.getItem('sora_update_banner_v1_2_1_dismissed');
+      const dismissed = localStorage.getItem('sora_update_banner_v1_2_2_dismissed');
       if (dismissed === 'true') {
         setIsBannerVisible(false);
       }
@@ -36,7 +36,7 @@ export function SystemUpdateNotice() {
   const handleDismissBanner = () => {
     setIsBannerVisible(false);
     try {
-      localStorage.setItem('sora_update_banner_v1_2_1_dismissed', 'true');
+      localStorage.setItem('sora_update_banner_v1_2_2_dismissed', 'true');
     } catch (e) {}
   };
 
@@ -52,10 +52,10 @@ export function SystemUpdateNotice() {
               </span>
               <div className="text-xs text-text-sora">
                 <span className="font-bold text-primary-sora mr-1.5 uppercase tracking-wider text-[11px] bg-primary-sora/10 px-2 py-0.5 rounded-full border border-primary-sora/20">
-                  Actualización v1.2.1
+                  Actualización v1.2.2
                 </span>
                 <span className="font-medium">
-                  Direcciones en la misma pantalla, edición/borrado de pedidos y cálculo de costo de envío por distancia.
+                  Pedidos en tiempo real con WebSockets (sin refrescar) y link público de rastreo en vivo para clientes por WhatsApp.
                 </span>
               </div>
             </div>
@@ -91,7 +91,7 @@ export function SystemUpdateNotice() {
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-sora opacity-75" />
           <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary-sora" />
         </span>
-        <span className="group-hover:text-primary-sora transition-colors">v1.2.1 • Novedades</span>
+        <span className="group-hover:text-primary-sora transition-colors">v1.2.2 • Novedades</span>
       </button>
 
       {/* 3. MODAL DETALLADO CON HOJA DE RUTA Y NOVEDADES */}
@@ -106,7 +106,7 @@ export function SystemUpdateNotice() {
                 </div>
                 <div>
                   <h3 className="font-serif font-bold text-lg text-text-sora leading-tight">
-                    Novedades de la Versión v1.2.1
+                    Novedades de la Versión v1.2.2
                   </h3>
                   <p className="text-xs text-text-sora/60 mt-0.5">
                     Sora Cocina Casera • Registro de mejoras y optimizaciones
@@ -123,11 +123,11 @@ export function SystemUpdateNotice() {
 
             {/* Contenido scrolleable */}
             <div className="p-6 overflow-y-auto space-y-6 text-xs text-text-sora/80">
-              {/* Sección 1: Versión Actual v1.2.1 */}
+              {/* Sección 1: Versión Actual v1.2.2 */}
               <div className="space-y-3">
                 <div className="flex items-center space-x-2">
                   <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                    Versión Actual (v1.2.1)
+                    Versión Actual (v1.2.2)
                   </span>
                   <span className="text-emerald-700 font-semibold text-[11px]">
                     ● Desplegada en Producción
@@ -137,107 +137,51 @@ export function SystemUpdateNotice() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div className="p-3.5 rounded-2xl bg-bg-sora/70 border border-border-sora space-y-1.5">
                     <div className="flex items-center space-x-2 text-text-sora font-bold text-xs">
-                      <MapPin className="w-4 h-4 text-emerald-600" />
-                      <span>Direcciones en la Misma Pantalla</span>
+                      <Sparkles className="w-4 h-4 text-primary-sora" />
+                      <span>Sincronización en Tiempo Real</span>
                     </div>
                     <p className="text-[11px] text-text-sora/70 leading-relaxed">
-                      Al crear un cliente, la dirección, mapa interactivo y referencia se guardan en el mismo formulario sin cambiar de pestaña, con persistencia garantizada.
+                      Conexión WebSocket vía Supabase Realtime: cuando entra un pedido o cambia de estado, se actualiza al instante en Cocina, Delivery y Dashboard sin refrescar.
                     </p>
                   </div>
 
                   <div className="p-3.5 rounded-2xl bg-bg-sora/70 border border-border-sora space-y-1.5">
                     <div className="flex items-center space-x-2 text-text-sora font-bold text-xs">
-                      <Edit3 className="w-4 h-4 text-amber-600" />
-                      <span>Edición y Borrado de Pedidos</span>
+                      <Truck className="w-4 h-4 text-emerald-600" />
+                      <span>Link de Rastreo para Clientes</span>
                     </div>
                     <p className="text-[11px] text-text-sora/70 leading-relaxed">
-                      Posibilidad de modificar pedidos existentes, marcarlos como cancelados o eliminarlos de manera permanente con confirmación de seguridad.
+                      Enlace público interactivo (/rastreo/ORD-XX) enviado por WhatsApp. El cliente ve en vivo cuándo su lasaña está en el horno o en camino con el motorista.
                     </p>
                   </div>
 
                   <div className="p-3.5 rounded-2xl bg-bg-sora/70 border border-border-sora space-y-1.5">
                     <div className="flex items-center space-x-2 text-text-sora font-bold text-xs">
-                      <Truck className="w-4 h-4 text-primary-sora" />
-                      <span>Cálculo de Costo de Envío por GPS</span>
+                      <Volume2 className="w-4 h-4 text-amber-600" />
+                      <span>Campana de Cocina y Vibración</span>
                     </div>
                     <p className="text-[11px] text-text-sora/70 leading-relaxed">
-                      Estimación automática de tarifa según distancia desde la cocina central de Sora (RD$ 100 base + RD$ 25/km adicional) con total ajustable.
+                      Timbre de servicio sintetizado con Web Audio API que suena automáticamente al registrarse una nueva comanda o asignarse un despacho.
                     </p>
                   </div>
 
                   <div className="p-3.5 rounded-2xl bg-bg-sora/70 border border-border-sora space-y-1.5">
                     <div className="flex items-center space-x-2 text-text-sora font-bold text-xs">
-                      <DollarSign className="w-4 h-4 text-emerald-600" />
-                      <span>Moneda Dominicana (DOP / RD$)</span>
+                      <ShieldCheck className="w-4 h-4 text-blue-600" />
+                      <span>Seguridad y Permisos Granulares</span>
                     </div>
                     <p className="text-[11px] text-text-sora/70 leading-relaxed">
-                      Ventas, platos, balances y notificaciones de WhatsApp desglosados con formato oficial en pesos dominicanos.
+                      Control estricto de roles (Admin, Coadmin, Delivery), bloqueo instantáneo de cuentas inactivas y guardias de ruta en servidor y cliente.
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Sección 2: Próximas Actualizaciones Planificadas */}
-              <div className="space-y-3 pt-2">
-                <div className="flex items-center space-x-2">
-                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-primary-sora/15 text-primary-sora border border-primary-sora/30">
-                    Próximas Actualizaciones (Hoja de Ruta v1.3)
-                  </span>
-                  <span className="text-text-sora/50 font-medium text-[11px]">
-                    En Desarrollo
-                  </span>
-                </div>
-
-                <div className="space-y-2.5">
-                  <div className="p-3.5 rounded-2xl border border-primary-sora/30 bg-primary-sora/5 flex items-start space-x-3">
-                    <div className="w-8 h-8 rounded-xl bg-primary-sora/15 text-primary-sora flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <Volume2 className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-text-sora text-xs">
-                        1. Alertas Sonoras en Tiempo Real
-                      </h4>
-                      <p className="text-[11px] text-text-sora/70 mt-0.5 leading-relaxed">
-                        Campana y vibración auditiva inmediata en la cocina y despacho cada vez que se ingrese una nueva orden o se asigne un delivery.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="p-3.5 rounded-2xl border border-border-sora bg-white flex items-start space-x-3">
-                    <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <Printer className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-text-sora text-xs">
-                        2. Impresión de Comandas Térmicas y Facturas PDF
-                      </h4>
-                      <p className="text-[11px] text-text-sora/70 mt-0.5 leading-relaxed">
-                        Formato optimizado para impresoras térmicas de 58mm y 80mm para comandas de cocina y tickets de entrega de motoristas.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="p-3.5 rounded-2xl border border-border-sora bg-white flex items-start space-x-3">
-                    <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <PackageCheck className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-text-sora text-xs">
-                        3. Control de Stock e Inventario Diario
-                      </h4>
-                      <p className="text-[11px] text-text-sora/70 mt-0.5 leading-relaxed">
-                        Descuento automático de raciones de comida preparada y notificación preventiva antes de que se agoten las porciones del menú diario.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Nota de sugerencias */}
+              {/* Pie de notas */}
               <div className="p-4 rounded-2xl bg-bg-sora border border-border-sora flex items-center space-x-3">
                 <Lightbulb className="w-5 h-5 text-amber-600 flex-shrink-0" />
                 <p className="text-[11px] text-text-sora/80">
-                  ¿Tienes alguna sugerencia adicional para la operación de Sora Cocina Casera? Comunícala al administrador para incluirla en la próxima versión.
+                  ¿Tienes alguna sugerencia para seguir optimizando Sora Cocina Casera? Comunícala al administrador del sistema.
                 </p>
               </div>
             </div>
@@ -245,7 +189,7 @@ export function SystemUpdateNotice() {
             {/* Pie del modal */}
             <div className="px-6 py-4 border-t border-border-sora bg-bg-sora/30 flex items-center justify-between flex-shrink-0">
               <span className="text-[11px] text-text-sora/50 font-mono">
-                Sora Web App • Build v1.2.1
+                Sora Web App • Build v1.2.2
               </span>
               <button
                 onClick={() => setIsModalOpen(false)}

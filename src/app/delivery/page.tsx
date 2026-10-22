@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Order, OrderStatus } from '@/types/database.types';
 import { formatCurrency, cleanPhoneNumber } from '@/lib/utils';
 import { getStoredOrders, saveStoredOrders, isValidUuid } from '@/lib/storage';
+import { triggerKitchenAlert } from '@/lib/audioAlerts';
 import {
   Truck,
   Phone,
@@ -77,8 +78,93 @@ export default function DeliveryMobilePage() {
 
   useEffect(() => {
     loadAssignedOrders();
+
+    // Sincronización en tiempo real vía WebSockets para repartidores
+    const channel = supabase
+      .channel('delivery-orders-realtime')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'orders' },
+        (payload: any) => {
+          if (payload.new) {
+            const incoming = payload.new as Order;
+            const isForMe = role === 'delivery' ? incoming.delivery_user_id === user?.id : true;
+            if (isForMe) {
+              setOrders((prev) => {
+                if (prev.some((o) => o.id === incoming.id)) return prev;
+                const next = [incoming, ...prev];
+                saveStoredOrders(next);
+                return next;
+              });
+              triggerKitchenAlert(
+                '¡Nueva Entrega Disponible!',
+                `Pedido #${incoming.order_number || ''} para ${incoming.client_name || 'Cliente'}. Destino: ${incoming.address || ''}`,
+                'delivery_assigned',
+                incoming.order_number
+              );
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'orders' },
+        (payload: any) => {
+          if (payload.new) {
+            const incoming = payload.new as Order;
+            const isForMe = role === 'delivery' ? incoming.delivery_user_id === user?.id : true;
+            setOrders((prev) => {
+              if (isForMe) {
+                const exists = prev.some((o) => o.id === incoming.id);
+                const next = exists
+                  ? prev.map((o) => (o.id === incoming.id ? { ...o, ...incoming } : o))
+                  : [incoming, ...prev];
+                saveStoredOrders(next);
+                return next;
+              } else {
+                const next = prev.filter((o) => o.id !== incoming.id);
+                saveStoredOrders(next);
+                return next;
+              }
+            });
+
+            // Si fue recién asignado a este repartidor
+            if (
+              role === 'delivery' &&
+              incoming.delivery_user_id === user?.id &&
+              payload.old?.delivery_user_id !== user?.id
+            ) {
+              triggerKitchenAlert(
+                '¡Pedido Asignado a Ti!',
+                `Pedido #${incoming.order_number || ''} para ${incoming.client_name || 'Cliente'}.`,
+                'delivery_assigned',
+                incoming.order_number
+              );
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'orders' },
+        (payload: any) => {
+          if (payload.old) {
+            const deletedId = payload.old.id;
+            setOrders((prev) => {
+              const next = prev.filter((o) => o.id !== deletedId);
+              saveStoredOrders(next);
+              return next;
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, role, supabase]);
+  }, [user?.id, role, supabase]);
 
   const isStatusActive = (st: string) => {
     const s = (st || '').toLowerCase().trim();
@@ -265,8 +351,14 @@ export default function DeliveryMobilePage() {
             {activeOrders.map((order) => {
               const cleanPhone = cleanPhoneNumber(order.client_phone);
               const clientFirstName = order.client_name.split(' ')[0];
+              const trackingBaseUrl =
+                typeof window !== 'undefined'
+                  ? window.location.origin
+                  : 'https://sora-cocina-casera-git-main-pppt1.vercel.app';
+              const trackingLink = `${trackingBaseUrl}/rastreo/${order.order_number}`;
+
               const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
-                `Hola ${clientFirstName}, soy el delivery de Sora Cocina Casera, voy en camino con tu pedido.`
+                `¡Hola ${clientFirstName}! 🛵 Tu repartidor de Sora Cocina Casera va en camino con tu pedido #${order.order_number}.\n\nPuedes seguir la entrega en tiempo real aquí:\n👉 ${trackingLink}`
               )}`;
               const callUrl = `tel:${cleanPhone}`;
 
