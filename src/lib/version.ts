@@ -1,5 +1,5 @@
-export const CURRENT_APP_VERSION = '1.2.3';
-export const CURRENT_RELEASE_TITLE = 'Sora v1.2.3 • Seguimiento GPS en Vivo & Retiro en Local';
+export const CURRENT_APP_VERSION = '1.2.4';
+export const CURRENT_RELEASE_TITLE = 'Sora v1.2.4 • Desglose Detallado de Envío, Fix iPad & Logo Oficial';
 export const CURRENT_RELEASE_DATE = '2026-10-21';
 
 export interface VersionHighlight {
@@ -10,24 +10,24 @@ export interface VersionHighlight {
 
 export const CURRENT_RELEASE_HIGHLIGHTS: VersionHighlight[] = [
   {
+    icon: '🧾',
+    title: 'Desglose Transparente de Envío al Cliente',
+    description: 'En el enlace de rastreo compartido por WhatsApp, el cliente ve con exactitud el Subtotal de la comida, el Costo de Delivery a domicilio y el Total final.',
+  },
+  {
+    icon: '📱',
+    title: 'Optimización Visual en iPad y Tablets',
+    description: 'Corregida la distorsión del formulario de egresos en iPad (evitando solapamientos entre el selector de fecha y la categoría).',
+  },
+  {
+    icon: '🎨',
+    title: 'Logo Oficial de Sora Integrado',
+    description: 'Se incorporó el logo oficial circular en el ícono de inicio PWA, pantalla de login, barra de navegación y página de rastreo.',
+  },
+  {
     icon: '📍',
     title: 'Seguimiento del Repartidor en Vivo (GPS)',
-    description: 'El cliente ve en tiempo real en el mapa dónde viene su motorista, los kilómetros restantes y el tiempo estimado de llegada para mayor tranquilidad.',
-  },
-  {
-    icon: '🏪',
-    title: 'Modalidad de Retiro en el Local (Takeout)',
-    description: 'En ventas ahora puedes elegir "Retiro en Local", sin costo de envío (RD$ 0) y con indicaciones guiadas en Google Maps para el cliente.',
-  },
-  {
-    icon: '⚡',
-    title: 'Sincronización en Tiempo Real (WebSockets)',
-    description: 'Los pedidos y estados se actualizan automáticamente en Cocina, Delivery y Dashboard sin refrescar la pantalla.',
-  },
-  {
-    icon: '🛵',
-    title: 'Link Público de Rastreo para WhatsApp',
-    description: 'Enlace exclusivo sin necesidad de login para que el cliente siga paso a paso su comida y contacte a la cocina.',
+    description: 'Visualización en vivo de la trayectoria del motorista y tiempo estimado para clientes y equipo.',
   },
 ];
 

@@ -297,8 +297,8 @@ export default function GastosPage() {
               </div>
             )}
 
-            <form onSubmit={handleAddExpense} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div>
+            <form onSubmit={handleAddExpense} className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              <div className="min-w-0">
                 <label className="block text-xs font-semibold text-text-sora/80 mb-1 uppercase tracking-wider">
                   Fecha *
                 </label>
@@ -309,19 +309,19 @@ export default function GastosPage() {
                     required
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
+                    className="w-full min-w-0 pl-9 pr-3 py-2 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
                   />
                 </div>
               </div>
 
-              <div>
+              <div className="min-w-0">
                 <label className="block text-xs font-semibold text-text-sora/80 mb-1 uppercase tracking-wider">
                   Categoría *
                 </label>
                 <select
                   value={category}
                   onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
-                  className="w-full px-3 py-2 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
+                  className="w-full min-w-0 px-3 py-2 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
                 >
                   <option value="insumos">Insumos</option>
                   <option value="empaques">Empaques</option>
@@ -332,7 +332,7 @@ export default function GastosPage() {
                 </select>
               </div>
 
-              <div>
+              <div className="min-w-0">
                 <label className="block text-xs font-semibold text-text-sora/80 mb-1 uppercase tracking-wider">
                   Monto (RD$ DOP) *
                 </label>
@@ -346,12 +346,12 @@ export default function GastosPage() {
                     placeholder="Ej: 850"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
+                    className="w-full min-w-0 pl-9 pr-3 py-2 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
                   />
                 </div>
               </div>
 
-              <div>
+              <div className="min-w-0">
                 <label className="block text-xs font-semibold text-text-sora/80 mb-1 uppercase tracking-wider">
                   Creado Por (created_by)
                 </label>
@@ -361,12 +361,12 @@ export default function GastosPage() {
                     type="text"
                     disabled
                     value={profile?.full_name || 'Usuario Activo'}
-                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-border-sora bg-bg-sora/20 text-text-sora/60 text-xs font-medium cursor-not-allowed"
+                    className="w-full min-w-0 pl-9 pr-3 py-2 rounded-xl border border-border-sora bg-bg-sora/20 text-text-sora/60 text-xs font-medium cursor-not-allowed"
                   />
                 </div>
               </div>
 
-              <div className="sm:col-span-2 lg:col-span-4">
+              <div className="sm:col-span-2 xl:col-span-4 min-w-0">
                 <label className="block text-xs font-semibold text-text-sora/80 mb-1 uppercase tracking-wider">
                   Descripción del Egreso *
                 </label>
@@ -376,11 +376,11 @@ export default function GastosPage() {
                   placeholder="Detalla el producto, insumo o servicio adquirido..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs placeholder:text-text-sora/30 focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora"
+                  className="w-full min-w-0 px-3.5 py-2.5 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs placeholder:text-text-sora/30 focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora"
                 />
               </div>
 
-              <div className="sm:col-span-2 lg:col-span-4 flex justify-end space-x-2 pt-2">
+              <div className="sm:col-span-2 xl:col-span-4 flex justify-end space-x-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowAddForm(false)}

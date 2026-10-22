@@ -100,8 +100,8 @@ export function InstallAppModal({
           </button>
 
           <div className="flex items-center space-x-3 mb-2">
-            <div className="w-12 h-12 rounded-2xl bg-primary-sora text-white flex items-center justify-center shadow-lg shadow-primary-sora/25 flex-shrink-0">
-              <Download className="w-6 h-6 animate-bounce" />
+            <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-lg shadow-primary-sora/25 border border-primary-sora/20 bg-white flex items-center justify-center flex-shrink-0">
+              <img src="/logo.jpg" alt="Sora Cocina Casera" className="w-full h-full object-cover" />
             </div>
             <div>
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-primary-sora text-white shadow-xs">

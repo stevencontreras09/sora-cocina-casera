@@ -1,8 +1,10 @@
 // Service Worker para Sora Cocina Casera PWA
-const CACHE_NAME = 'sora-pwa-v1.2.3';
+const CACHE_NAME = 'sora-pwa-v1.2.4';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
+  '/logo.jpg',
+  '/favicon.png',
   '/icons/icon.svg',
   '/icons/icon-192.png',
   '/icons/icon-512.png',

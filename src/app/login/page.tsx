@@ -153,8 +153,8 @@ function LoginForm() {
     <div className="w-full max-w-md">
       {/* Cabecera / Identidad Sora */}
       <div className="text-center mb-8">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-3xl bg-primary-sora text-white shadow-lg shadow-primary-sora/20 mb-4 transition-transform hover:scale-105">
-          <ChefHat className="w-8 h-8" />
+        <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl overflow-hidden shadow-lg shadow-primary-sora/20 mb-4 transition-transform hover:scale-105 border-2 border-primary-sora/20 bg-white p-0.5">
+          <img src="/logo.jpg" alt="Sora Cocina Casera" className="w-full h-full object-cover rounded-[22px]" />
         </div>
         <h1 className="font-serif text-3xl font-bold text-text-sora tracking-tight">
           Sora Cocina Casera

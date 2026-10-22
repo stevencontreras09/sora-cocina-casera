@@ -9,6 +9,7 @@ import { SystemUpdateNotice } from './SystemUpdateNotice';
 import { KitchenAlertBanner } from '@/components/alerts/KitchenAlertBanner';
 import { AutoSaveStatusIndicator } from './AutoSaveStatusIndicator';
 import { InstallAppModal } from './InstallAppModal';
+import { CURRENT_APP_VERSION } from '@/lib/version';
 import {
   LayoutDashboard,
   Receipt,
@@ -147,8 +148,8 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
       {/* HEADER MÓVIL Y TABLET (IPAD VERTICAL) */}
       <header className="lg:hidden bg-bg-sora border-b border-border-sora px-4 sm:px-6 py-3.5 flex items-center justify-between sticky top-0 z-30 shadow-sm backdrop-blur-md bg-bg-sora/95">
         <div className="flex items-center space-x-2.5">
-          <div className="w-10 h-10 rounded-2xl bg-primary-sora text-white flex items-center justify-center shadow-sm">
-            <ChefHat className="w-5 h-5" />
+          <div className="w-10 h-10 rounded-2xl overflow-hidden shadow-sm border border-primary-sora/15 bg-white flex items-center justify-center flex-shrink-0">
+            <img src="/logo.jpg" alt="Sora Cocina Casera" className="w-full h-full object-cover" />
           </div>
           <div>
             <h1 className="font-serif font-bold text-text-sora text-lg sm:text-xl tracking-tight leading-none">
@@ -270,7 +271,7 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
               <span>{isSigningOut ? 'Cerrando sesión...' : 'Cerrar sesión'}</span>
             </button>
             <span className="text-[10px] text-text-sora/40 font-mono mt-2.5 block">
-              Sora Cocina Casera • v1.2.3
+              Sora Cocina Casera • v{CURRENT_APP_VERSION}
             </span>
           </div>
         </div>
@@ -281,8 +282,8 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
         <div>
           {/* Logo y Marca */}
           <div className="flex items-center space-x-3 pb-6 border-b border-border-sora">
-            <div className="w-11 h-11 rounded-2xl bg-primary-sora text-white flex items-center justify-center shadow-md shadow-primary-sora/20">
-              <ChefHat className="w-6 h-6" />
+            <div className="w-11 h-11 rounded-2xl overflow-hidden shadow-md shadow-primary-sora/15 border border-primary-sora/15 bg-white flex items-center justify-center flex-shrink-0">
+              <img src="/logo.jpg" alt="Sora Cocina Casera" className="w-full h-full object-cover" />
             </div>
             <div>
               <h2 className="font-serif font-bold text-text-sora text-xl tracking-tight leading-none">
@@ -371,7 +372,7 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
             <span>{isSigningOut ? 'Cerrando sesión...' : 'Cerrar sesión'}</span>
           </button>
           <span className="text-[10px] text-text-sora/40 font-mono mt-1 block">
-            Sora Cocina Casera • v1.2.3
+            Sora Cocina Casera • v{CURRENT_APP_VERSION}
           </span>
         </div>
       </aside>

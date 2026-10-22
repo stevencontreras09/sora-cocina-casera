@@ -9,6 +9,7 @@ import { isValidUuid } from '@/lib/storage';
 import { formatCurrency } from '@/lib/utils';
 import { playKitchenChime, triggerVibration } from '@/lib/audioAlerts';
 import { SORA_CONFIG } from '@/lib/constants';
+import { CURRENT_APP_VERSION } from '@/lib/version';
 import {
   SORA_KITCHEN_COORDS,
   calculateHaversineDistanceKm,
@@ -300,6 +301,56 @@ export default function PublicOrderTrackingPage() {
     };
   }, [driverCoords, clientLocation]);
 
+  // Subtotal de los platos ordenados
+  const itemsSubtotal = useMemo(() => {
+    if (!order?.items || order.items.length === 0) return 0;
+    return order.items.reduce(
+      (sum, it) => sum + (it.subtotal || (it.price || 0) * (it.quantity || 1)),
+      0
+    );
+  }, [order?.items]);
+
+  // Desglose transparente para el cliente (Comida vs Delivery Fee)
+  const deliveryBreakdown = useMemo(() => {
+    if (!order) return { foodSubtotal: 0, deliveryFee: 0, total: 0 };
+    const total = order.total || 0;
+
+    if (isPickup) {
+      return {
+        foodSubtotal: total,
+        deliveryFee: 0,
+        total,
+      };
+    }
+
+    // 1. Si la orden tiene tarifa de envío explícita configurada (> 0)
+    if (typeof order.delivery_fee === 'number' && order.delivery_fee > 0) {
+      const foodSub = itemsSubtotal > 0 ? itemsSubtotal : Math.max(0, total - order.delivery_fee);
+      return {
+        foodSubtotal: foodSub,
+        deliveryFee: order.delivery_fee,
+        total,
+      };
+    }
+
+    // 2. Si no tiene delivery_fee explícito pero la suma de platos es menor al total cobrado
+    if (itemsSubtotal > 0 && total > itemsSubtotal) {
+      const diff = total - itemsSubtotal;
+      return {
+        foodSubtotal: itemsSubtotal,
+        deliveryFee: diff,
+        total,
+      };
+    }
+
+    // 3. Si no hay costo adicional de envío registrado
+    return {
+      foodSubtotal: itemsSubtotal > 0 ? itemsSubtotal : total,
+      deliveryFee: 0,
+      total,
+    };
+  }, [order, isPickup, itemsSubtotal]);
+
   const handleCopyLink = () => {
     if (typeof window !== 'undefined') {
       navigator.clipboard.writeText(window.location.href);
@@ -335,8 +386,8 @@ export default function PublicOrderTrackingPage() {
       <header className="bg-white/80 backdrop-blur-md border-b border-border-sora sticky top-0 z-30 shadow-2xs">
         <div className="max-w-xl mx-auto px-4 py-3.5 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-primary-sora text-white flex items-center justify-center shadow-md shadow-primary-sora/20">
-              <ChefHat className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-2xl overflow-hidden shadow-md shadow-primary-sora/15 border border-primary-sora/15 bg-white flex items-center justify-center flex-shrink-0">
+              <img src="/logo.jpg" alt="Sora Cocina Casera" className="w-full h-full object-cover" />
             </div>
             <div>
               <h1 className="font-serif font-bold text-lg leading-none text-text-sora">
@@ -787,24 +838,41 @@ export default function PublicOrderTrackingPage() {
                 )}
               </div>
 
-              {/* Resumen financiero */}
-              <div className="pt-2 border-t border-border-sora space-y-1.5 text-xs">
-                {!isPickup && order.delivery_fee !== undefined && order.delivery_fee > 0 && (
+              {/* Resumen financiero transparente */}
+              <div className="pt-3 border-t border-border-sora space-y-2 text-xs">
+                <div className="flex justify-between text-text-sora/70">
+                  <span>Subtotal Comida</span>
+                  <span className="font-semibold text-text-sora">
+                    {formatCurrency(deliveryBreakdown.foodSubtotal)}
+                  </span>
+                </div>
+
+                {!isPickup ? (
                   <div className="flex justify-between text-text-sora/70">
-                    <span>Costo de Envío (Delivery)</span>
-                    <span className="font-semibold">{formatCurrency(order.delivery_fee)}</span>
+                    <span className="flex items-center">
+                      <Truck className="w-3.5 h-3.5 mr-1 text-primary-sora" />
+                      Costo de Envío a Domicilio (Delivery)
+                    </span>
+                    <span className="font-semibold text-text-sora">
+                      {deliveryBreakdown.deliveryFee > 0
+                        ? formatCurrency(deliveryBreakdown.deliveryFee)
+                        : 'RD$ 0.00 (Incluido)'}
+                    </span>
                   </div>
-                )}
-                {isPickup && (
-                  <div className="flex justify-between text-emerald-700 font-semibold text-[11px]">
-                    <span>Modalidad de Entrega</span>
+                ) : (
+                  <div className="flex justify-between text-emerald-700 font-semibold text-[11px] bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                    <span className="flex items-center">
+                      <Store className="w-3.5 h-3.5 mr-1" />
+                      Modalidad de Entrega
+                    </span>
                     <span>Retiro en Local (Gratis - RD$ 0)</span>
                   </div>
                 )}
-                <div className="flex justify-between text-sm font-bold text-text-sora pt-1 border-t border-dashed border-border-sora">
-                  <span>Total</span>
+
+                <div className="flex justify-between text-sm font-bold text-text-sora pt-2 border-t border-dashed border-border-sora">
+                  <span>Total a Pagar</span>
                   <span className="text-primary-sora font-serif text-base font-bold">
-                    {formatCurrency(order.total)}
+                    {formatCurrency(deliveryBreakdown.total)}
                   </span>
                 </div>
                 <div className="flex justify-between text-[11px] text-text-sora/60 pt-0.5">
@@ -881,7 +949,7 @@ export default function PublicOrderTrackingPage() {
           Sora Cocina Casera
         </p>
         <p className="text-[10px] text-text-sora/50 mt-0.5">
-          {SORA_CONFIG.city} • WhatsApp: {SORA_CONFIG.phoneDisplay} • v1.2.3
+          {SORA_CONFIG.city} • WhatsApp: {SORA_CONFIG.phoneDisplay} • v{CURRENT_APP_VERSION}
         </p>
       </footer>
     </div>
