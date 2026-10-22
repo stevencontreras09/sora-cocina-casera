@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import { formatCurrency } from '@/lib/utils';
 import { getStoredOrders, getStoredExpenses } from '@/lib/storage';
+import { triggerKitchenAlert } from '@/lib/audioAlerts';
 import {
   TrendingUp,
   ShoppingBag,
@@ -151,8 +152,16 @@ export default function DashboardPage() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
-        () => {
+        (payload: any) => {
           fetchDashboardData();
+          if (payload?.eventType === 'INSERT' && payload?.new) {
+            triggerKitchenAlert(
+              '¡Nuevo Pedido en Sora!',
+              `#${payload.new.order_number || ''} para ${payload.new.client_name || 'Cliente'}. Total: RD$ ${payload.new.total || 0}`,
+              'new_order',
+              payload.new.order_number
+            );
+          }
         }
       )
       .subscribe();

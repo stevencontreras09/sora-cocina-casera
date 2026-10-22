@@ -10,6 +10,8 @@ import {
   saveStoredInventory,
   DEFAULT_INVENTORY_ITEMS,
   generateUuid,
+  getStoredExpenses,
+  saveStoredExpenses,
 } from '@/lib/storage';
 import { formatCurrency } from '@/lib/utils';
 import {
@@ -28,6 +30,8 @@ import {
   Plus,
   Minus,
   Sparkles,
+  ShoppingCart,
+  Printer,
 } from 'lucide-react';
 
 const CATEGORIES = [
@@ -60,6 +64,90 @@ export default function InventarioPage() {
   const [notes, setNotes] = useState('');
 
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
+
+  // Modal de Compra / Reposición Rápida vinculada con Gastos
+  const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false);
+  const [purchaseTargetItem, setPurchaseTargetItem] = useState<InventoryItem | null>(null);
+  const [purchaseQuantity, setPurchaseQuantity] = useState('');
+  const [purchaseCost, setPurchaseCost] = useState('');
+  const [purchaseSupplier, setPurchaseSupplier] = useState('');
+  const [purchasePaymentMethod, setPurchasePaymentMethod] = useState<'efectivo' | 'transferencia' | 'tarjeta'>('efectivo');
+
+  const handleOpenQuickPurchaseModal = (item: InventoryItem) => {
+    setPurchaseTargetItem(item);
+    setPurchaseQuantity('10');
+    setPurchaseCost(item.cost_per_unit ? String(item.cost_per_unit * 10) : '');
+    setPurchaseSupplier('');
+    setPurchasePaymentMethod('efectivo');
+    setIsPurchaseModalOpen(true);
+  };
+
+  const handleSaveQuickPurchase = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!purchaseTargetItem) return;
+
+    const addedQty = parseFloat(purchaseQuantity) || 0;
+    const totalCost = parseFloat(purchaseCost) || 0;
+    if (addedQty <= 0 || totalCost <= 0) {
+      alert('Por favor ingresa una cantidad y costo válidos.');
+      return;
+    }
+
+    // 1. Actualizar stock en el inventario
+    const updatedInventory = items.map((it) => {
+      if (it.id === purchaseTargetItem.id) {
+        return {
+          ...it,
+          current_stock: Math.round((it.current_stock + addedQty) * 10) / 10,
+          cost_per_unit: Math.round((totalCost / addedQty) * 10) / 10,
+          last_restocked_at: new Date().toISOString(),
+        };
+      }
+      return it;
+    });
+
+    saveInventoryList(updatedInventory);
+
+    // 2. Registrar egreso en Gastos
+    const expenseId = generateUuid();
+    const newExpense = {
+      id: expenseId,
+      amount: totalCost,
+      category: purchaseTargetItem.category === 'empaques' ? 'empaques' : 'insumos',
+      description: `Compra de ${purchaseTargetItem.name} (${addedQty} ${purchaseTargetItem.unit}) ${purchaseSupplier ? '- ' + purchaseSupplier : ''}`,
+      date: new Date().toISOString().split('T')[0],
+      payment_method: purchasePaymentMethod,
+      quantity: addedQty,
+      unit: purchaseTargetItem.unit,
+      unit_cost: Math.round((totalCost / addedQty) * 10) / 10,
+      inventory_item_id: purchaseTargetItem.id,
+      created_at: new Date().toISOString(),
+    };
+
+    try {
+      await supabase.from('expenses').insert({
+        id: newExpense.id,
+        amount: newExpense.amount,
+        category: newExpense.category,
+        description: newExpense.description,
+        date: newExpense.date,
+        payment_method: newExpense.payment_method,
+        quantity: newExpense.quantity,
+        unit: newExpense.unit,
+        unit_cost: newExpense.unit_cost,
+        inventory_item_id: newExpense.inventory_item_id,
+      });
+    } catch (_) {}
+
+    const localExpenses = getStoredExpenses();
+    saveStoredExpenses([newExpense as any, ...localExpenses]);
+
+    setIsPurchaseModalOpen(false);
+    setSuccessBanner(
+      `¡Se sumaron +${addedQty} ${purchaseTargetItem.unit} a "${purchaseTargetItem.name}" y se registró el gasto de RD$ ${totalCost}!`
+    );
+    setTimeout(() => setSuccessBanner(null), 4000);
+  };
 
   // Cargar inventario desde Supabase store_settings o respaldo local
   const loadInventory = async () => {
@@ -247,6 +335,13 @@ export default function InventarioPage() {
           </div>
 
           <div className="flex items-center space-x-2">
+            <button
+              onClick={() => window.print()}
+              className="p-2.5 rounded-xl border border-border-sora bg-white text-text-sora hover:bg-bg-sora text-xs font-semibold transition-all shadow-sm active:scale-95"
+              title="Imprimir auditoría de inventario"
+            >
+              <Printer className="w-4 h-4" />
+            </button>
             <button
               onClick={loadInventory}
               disabled={isLoading}
@@ -447,6 +542,20 @@ export default function InventarioPage() {
                       </button>
                     </div>
 
+                    {/* Botón rápido "Comprar" para reponer stock */}
+                    <button
+                      onClick={() => handleOpenQuickPurchaseModal(item)}
+                      className={`inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-95 ${
+                        isLow
+                          ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-sm shadow-rose-600/30'
+                          : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'
+                      }`}
+                      title="Registrar compra en gastos y sumar al stock"
+                    >
+                      <ShoppingCart className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Comprar</span>
+                    </button>
+
                     {/* Acciones de edición */}
                     <div className="flex items-center space-x-1 pl-2 border-l border-border-sora">
                       <button
@@ -624,6 +733,133 @@ export default function InventarioPage() {
                   className="px-5 py-2 rounded-xl bg-primary-sora text-white text-xs font-semibold hover:bg-primary-hover shadow-sm"
                 >
                   {editingItem ? 'Guardar Cambios' : 'Agregar Insumo'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE COMPRA / REPOSICIÓN VINCULADA CON GASTOS */}
+      {isPurchaseModalOpen && purchaseTargetItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-border-sora p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-border-sora">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-9 h-9 rounded-xl bg-primary-sora/10 text-primary-sora flex items-center justify-center">
+                  <ShoppingCart className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-serif font-bold text-text-sora text-base">
+                    Comprar & Reponer Stock
+                  </h3>
+                  <p className="text-[11px] text-text-sora/60">
+                    Suma existencias al inventario y genera el gasto automáticamente.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsPurchaseModalOpen(false)}
+                className="p-1.5 rounded-lg text-text-sora/50 hover:text-text-sora hover:bg-border-sora/40 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-bg-sora/60 border border-border-sora text-xs space-y-1">
+              <div className="flex justify-between font-semibold text-text-sora">
+                <span>Insumo:</span>
+                <span className="text-primary-sora">{purchaseTargetItem.name}</span>
+              </div>
+              <div className="flex justify-between text-text-sora/70 text-[11px]">
+                <span>Stock Actual:</span>
+                <span>{purchaseTargetItem.current_stock} {purchaseTargetItem.unit}</span>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveQuickPurchase} className="space-y-3.5">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-text-sora/80 mb-1 uppercase tracking-wider">
+                    Cantidad ({purchaseTargetItem.unit}) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                    required
+                    placeholder="Ej: 10"
+                    value={purchaseQuantity}
+                    onChange={(e) => setPurchaseQuantity(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-border-sora bg-bg-sora/30 text-text-sora text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary-sora/20"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-text-sora/80 mb-1 uppercase tracking-wider">
+                    Total Pagado (RD$) *
+                  </label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    required
+                    placeholder="Ej: 2200"
+                    value={purchaseCost}
+                    onChange={(e) => setPurchaseCost(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-border-sora bg-bg-sora/30 text-text-sora text-xs font-bold text-primary-sora focus:outline-none focus:ring-2 focus:ring-primary-sora/20"
+                  />
+                </div>
+              </div>
+
+              {parseFloat(purchaseQuantity) > 0 && parseFloat(purchaseCost) > 0 && (
+                <p className="text-[11px] text-emerald-700 bg-emerald-50 p-2 rounded-xl border border-emerald-200">
+                  💡 Costo resultante: <strong>RD$ {(parseFloat(purchaseCost) / parseFloat(purchaseQuantity)).toFixed(1)} / {purchaseTargetItem.unit}</strong>
+                </p>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-text-sora/80 mb-1 uppercase tracking-wider">
+                  Método de Pago
+                </label>
+                <select
+                  value={purchasePaymentMethod}
+                  onChange={(e: any) => setPurchasePaymentMethod(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-border-sora bg-bg-sora/30 text-text-sora text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary-sora/20"
+                >
+                  <option value="efectivo">Efectivo (Caja Chica)</option>
+                  <option value="transferencia">Transferencia Bancaria</option>
+                  <option value="tarjeta">Tarjeta</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-text-sora/80 mb-1 uppercase tracking-wider">
+                  Proveedor / Detalle (Opcional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: Distribuidora, Colmado o Mercado"
+                  value={purchaseSupplier}
+                  onChange={(e) => setPurchaseSupplier(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-border-sora bg-bg-sora/30 text-text-sora text-xs placeholder:text-text-sora/30 focus:outline-none focus:ring-2 focus:ring-primary-sora/20"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-border-sora">
+                <button
+                  type="button"
+                  onClick={() => setIsPurchaseModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-medium text-text-sora/70 hover:bg-border-sora/40"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex items-center space-x-1.5 px-5 py-2 rounded-xl bg-primary-sora text-white text-xs font-semibold hover:bg-primary-hover shadow-sm active:scale-95"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Guardar Compra & Cargar Stock</span>
                 </button>
               </div>
             </form>

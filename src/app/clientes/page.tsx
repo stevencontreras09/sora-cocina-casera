@@ -7,14 +7,18 @@ import { Client, ClientAddress } from '@/types/database.types';
 import { createClient } from '@/lib/supabase/client';
 import { ClientModal, ClientAddressFormData } from '@/components/clientes/ClientModal';
 import { AddressModal } from '@/components/clientes/AddressModal';
+import { ImportWhatsAppModal } from '@/components/clientes/ImportWhatsAppModal';
 import { cleanPhoneNumber } from '@/lib/utils';
+import { SORA_KITCHEN_COORDS } from '@/lib/routeOptimizer';
 import {
   saveStoredClients,
   getStoredClients,
   mergeClientsWithCached,
   saveStoredAddresses,
+  getStoredAddresses,
   isValidUuid,
   generateUuid,
+  ExtractedWhatsAppClient,
 } from '@/lib/storage';
 import {
   Users,
@@ -33,6 +37,8 @@ import {
   ExternalLink,
   CheckCircle2,
   RefreshCw,
+  Sparkles,
+  Truck,
 } from 'lucide-react';
 
 export default function ClientesPage() {
@@ -55,6 +61,76 @@ export default function ClientesPage() {
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [activeClientForAddress, setActiveClientForAddress] = useState<Client | null>(null);
   const [editingAddress, setEditingAddress] = useState<ClientAddress | null>(null);
+
+  // Modal para Importar Contactos desde WhatsApp o VCF
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  // Filtro de clientes: todos, delivery o pickup
+  const [deliveryFilter, setDeliveryFilter] = useState<'all' | 'delivery' | 'pickup'>('all');
+
+  const handleBatchImportContacts = async (contacts: ExtractedWhatsAppClient[]) => {
+    const newClientsToAdd: Client[] = [];
+    const newAddressesToAdd: ClientAddress[] = [];
+
+    for (const c of contacts) {
+      const clientId = generateUuid();
+      const clientRecord: Client = {
+        id: clientId,
+        name: c.name || 'Cliente WhatsApp',
+        phone: c.phone,
+        notes: c.notes || undefined,
+        created_at: new Date().toISOString(),
+      };
+
+      const addressId = generateUuid();
+      const isPickup = c.isPickup;
+      const addressRecord: ClientAddress = {
+        id: addressId,
+        client_id: clientId,
+        label: isPickup ? 'Retiro en Local' : 'Principal',
+        address: isPickup
+          ? SORA_KITCHEN_COORDS.address || 'Sora Cocina Casera (Retiro en Local)'
+          : c.address || 'Dirección de entrega',
+        reference: isPickup
+          ? 'Cliente habitual de Mostrador / Pickup'
+          : c.reference || undefined,
+        latitude: isPickup ? SORA_KITCHEN_COORDS.lat : SORA_KITCHEN_COORDS.lat,
+        longitude: isPickup ? SORA_KITCHEN_COORDS.lng : SORA_KITCHEN_COORDS.lng,
+        is_default: true,
+        created_at: new Date().toISOString(),
+      };
+
+      clientRecord.addresses = [addressRecord];
+      newClientsToAdd.push(clientRecord);
+      newAddressesToAdd.push(addressRecord);
+
+      try {
+        await supabase.from('clients').insert({
+          id: clientRecord.id,
+          name: clientRecord.name,
+          phone: clientRecord.phone,
+          notes: clientRecord.notes,
+        });
+
+        await supabase.from('client_addresses').insert({
+          id: addressRecord.id,
+          client_id: addressRecord.client_id,
+          label: addressRecord.label,
+          address: addressRecord.address,
+          reference: addressRecord.reference,
+          latitude: addressRecord.latitude,
+          longitude: addressRecord.longitude,
+          is_default: addressRecord.is_default,
+        });
+      } catch (err) {
+        console.warn('Guardado local de cliente importado:', clientRecord.name);
+      }
+    }
+
+    const updatedClients = [...newClientsToAdd, ...clients];
+    setClients(updatedClients);
+    saveStoredClients(updatedClients);
+    saveStoredAddresses([...newAddressesToAdd, ...getStoredAddresses()]);
+  };
 
   // Cargar clientes con combinación inteligente que PRESERVA todas las direcciones locales
   // Cargar clientes con combinación inteligente que PRESERVA 100% las direcciones locales
@@ -425,10 +501,31 @@ export default function ClientesPage() {
   };
 
   const filteredClients = useMemo(() => {
-    const q = searchTerm.toLowerCase().trim();
-    if (!q) return clients;
+    let list = clients;
+    if (deliveryFilter === 'pickup') {
+      list = list.filter((c) =>
+        c.addresses?.some(
+          (a) =>
+            a.label?.toLowerCase().includes('local') ||
+            a.label?.toLowerCase().includes('retiro') ||
+            a.reference?.toLowerCase().includes('pickup')
+        )
+      );
+    } else if (deliveryFilter === 'delivery') {
+      list = list.filter((c) =>
+        !c.addresses?.some(
+          (a) =>
+            a.label?.toLowerCase().includes('local') ||
+            a.label?.toLowerCase().includes('retiro') ||
+            a.reference?.toLowerCase().includes('pickup')
+        )
+      );
+    }
 
-    return clients.filter((c) => {
+    const q = searchTerm.toLowerCase().trim();
+    if (!q) return list;
+
+    return list.filter((c) => {
       const matchName = c.name.toLowerCase().includes(q);
       const matchPhone = c.phone.toLowerCase().includes(q);
       const matchNotes = c.notes?.toLowerCase().includes(q);
@@ -440,7 +537,7 @@ export default function ClientesPage() {
       );
       return matchName || matchPhone || matchNotes || matchAddress;
     });
-  }, [clients, searchTerm]);
+  }, [clients, searchTerm, deliveryFilter]);
 
   const totalAddresses = clients.reduce(
     (acc, curr) => acc + (curr.addresses?.length || 0),
@@ -470,7 +567,7 @@ export default function ClientesPage() {
             </p>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-wrap gap-y-2">
             <button
               onClick={fetchClients}
               disabled={isLoading}
@@ -478,6 +575,14 @@ export default function ClientesPage() {
               title="Refrescar lista"
             >
               <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-primary-sora' : ''}`} />
+            </button>
+            <button
+              onClick={() => setIsImportModalOpen(true)}
+              className="inline-flex items-center justify-center space-x-1.5 px-3.5 py-2.5 rounded-xl bg-whatsapp hover:bg-[#20bd5a] text-white text-xs sm:text-sm font-semibold transition-all shadow-md shadow-whatsapp/20 active:scale-95"
+              title="Importar contactos desde texto o archivo .VCF"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>Importar WhatsApp</span>
             </button>
             <button
               onClick={() => {
@@ -534,10 +639,78 @@ export default function ClientesPage() {
           </div>
         </div>
 
+        {/* Filtros de Segmentación: Todos, A Domicilio, Retiro en Local */}
+        <div className="flex items-center space-x-2 overflow-x-auto pb-1 pt-1">
+          <button
+            onClick={() => setDeliveryFilter('all')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center space-x-1.5 whitespace-nowrap active:scale-95 ${
+              deliveryFilter === 'all'
+                ? 'bg-primary-sora text-white shadow-sm shadow-primary-sora/20'
+                : 'bg-white border border-border-sora text-text-sora/70 hover:bg-bg-sora'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>Todos ({clients.length})</span>
+          </button>
+          <button
+            onClick={() => setDeliveryFilter('delivery')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center space-x-1.5 whitespace-nowrap active:scale-95 ${
+              deliveryFilter === 'delivery'
+                ? 'bg-primary-sora text-white shadow-sm shadow-primary-sora/20'
+                : 'bg-white border border-border-sora text-text-sora/70 hover:bg-bg-sora'
+            }`}
+          >
+            <Truck className="w-3.5 h-3.5" />
+            <span>
+              A Domicilio (
+              {
+                clients.filter(
+                  (c) =>
+                    !c.addresses?.some(
+                      (a) =>
+                        a.label?.toLowerCase().includes('local') ||
+                        a.label?.toLowerCase().includes('retiro')
+                    )
+                ).length
+              }
+              )
+            </span>
+          </button>
+          <button
+            onClick={() => setDeliveryFilter('pickup')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center space-x-1.5 whitespace-nowrap active:scale-95 ${
+              deliveryFilter === 'pickup'
+                ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/20'
+                : 'bg-white border border-border-sora text-text-sora/70 hover:bg-bg-sora'
+            }`}
+          >
+            <Store className="w-3.5 h-3.5" />
+            <span>
+              Solo Retiro en Local (
+              {
+                clients.filter((c) =>
+                  c.addresses?.some(
+                    (a) =>
+                      a.label?.toLowerCase().includes('local') ||
+                      a.label?.toLowerCase().includes('retiro')
+                  )
+                ).length
+              }
+              )
+            </span>
+          </button>
+        </div>
+
         {/* Lista de Tarjetas de Clientes (Grid ergonómico para iPad y PC) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           {filteredClients.map((client) => {
             const cleanPhone = cleanPhoneNumber(client.phone);
+            const isPickupOnly = client.addresses?.some(
+              (a) =>
+                a.label?.toLowerCase().includes('local') ||
+                a.label?.toLowerCase().includes('retiro') ||
+                a.reference?.toLowerCase().includes('pickup')
+            );
             const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
               `Hola ${client.name}, te escribimos de Sora Cocina Casera...`
             )}`;
@@ -551,9 +724,17 @@ export default function ClientesPage() {
                   {/* Encabezado del Cliente */}
                   <div className="flex items-start justify-between pb-3.5 border-b border-border-sora/80 gap-2">
                     <div className="min-w-0">
-                      <h2 className="font-serif font-bold text-lg sm:text-xl text-text-sora truncate">
-                        {client.name}
-                      </h2>
+                      <div className="flex items-center space-x-2">
+                        <h2 className="font-serif font-bold text-lg sm:text-xl text-text-sora truncate">
+                          {client.name}
+                        </h2>
+                        {isPickupOnly && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex-shrink-0">
+                            <Store className="w-3 h-3 mr-1" />
+                            Solo Pickup
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center space-x-2 mt-1">
                         <a
                           href={`tel:${client.phone}`}
@@ -766,6 +947,15 @@ export default function ClientesPage() {
           onSave={handleSaveAddress}
         />
       )}
+
+      {/* Modal para Importar Contactos desde WhatsApp o VCF */}
+      <ImportWhatsAppModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        existingClients={clients}
+        onImportSuccess={(cnt) => showFeedback(`¡Se importaron ${cnt} contacto(s) correctamente a Sora!`)}
+        onImportContacts={handleBatchImportContacts}
+      />
     </AppNavigation>
   );
 }

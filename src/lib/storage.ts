@@ -726,3 +726,85 @@ export function calculateOrderUrgency(order: Order, now: Date = new Date()): Ord
   };
 }
 
+// ==================== PARSER MULTIPLE DE WHATSAPP Y ARCHIVOS .VCF ====================
+export function extractMultipleWhatsAppOrVcf(content: string): ExtractedWhatsAppClient[] {
+  if (!content || !content.trim()) return [];
+
+  const raw = content.trim();
+  const results: ExtractedWhatsAppClient[] = [];
+  const seenPhones = new Set<string>();
+
+  // Caso 1: Archivo vCard (.vcf)
+  if (raw.includes('BEGIN:VCARD')) {
+    const vcardBlocks = raw.split(/BEGIN:VCARD/i).filter((b) => b.includes('END:VCARD'));
+    for (const block of vcardBlocks) {
+      let name = '';
+      let phone = '';
+      let address = '';
+      let notes = '';
+
+      const fnMatch = block.match(/(?:FN|N)(?:;[^:]*)?:([^\r\n]+)/i);
+      if (fnMatch) {
+        name = fnMatch[1].replace(/;/g, ' ').trim();
+      }
+
+      const telMatch = block.match(/TEL(?:;[^:]*)?:([^\r\n]+)/i);
+      if (telMatch) {
+        const rawTel = telMatch[1].trim();
+        const extracted = extractWhatsAppMessage(rawTel);
+        phone = extracted.phone || rawTel;
+      }
+
+      const adrMatch = block.match(/ADR(?:;[^:]*)?:([^\r\n]+)/i);
+      if (adrMatch) {
+        address = adrMatch[1].replace(/;/g, ', ').replace(/,+/g, ',').replace(/^,|,$/g, '').trim();
+      }
+
+      const noteMatch = block.match(/NOTE(?:;[^:]*)?:([^\r\n]+)/i);
+      if (noteMatch) {
+        notes = noteMatch[1].trim();
+      }
+
+      if (phone && !seenPhones.has(phone)) {
+        seenPhones.add(phone);
+        results.push({
+          name: name || 'Contacto Importado',
+          phone,
+          address,
+          reference: '',
+          notes,
+          isPickup: false,
+        });
+      }
+    }
+
+    if (results.length > 0) return results;
+  }
+
+  // Caso 2: Párrafos o lista de mensajes
+  const blocks = raw.split(/\n\s*\n/).filter((b) => b.trim().length > 0);
+
+  if (blocks.length > 1) {
+    for (const block of blocks) {
+      const parsed = extractWhatsAppMessage(block);
+      if (parsed.phone && !seenPhones.has(parsed.phone)) {
+        seenPhones.add(parsed.phone);
+        results.push(parsed);
+      } else if (parsed.name && !parsed.phone) {
+        results.push(parsed);
+      }
+    }
+  }
+
+  // Si no se encontraron bloques múltiples o solo es un texto continuo
+  if (results.length === 0) {
+    const single = extractWhatsAppMessage(raw);
+    if (single.name || single.phone || single.address) {
+      results.push(single);
+    }
+  }
+
+  return results;
+}
+
+

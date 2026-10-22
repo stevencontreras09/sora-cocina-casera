@@ -1,5 +1,5 @@
-export const CURRENT_APP_VERSION = '1.2.5';
-export const CURRENT_RELEASE_TITLE = 'Sora v1.2.5 • Semáforo de Pedidos, Extractor WhatsApp, Inventario & Libras en Gastos';
+export const CURRENT_APP_VERSION = '1.2.6';
+export const CURRENT_RELEASE_TITLE = 'Sora v1.2.6 • Importador Masivo WhatsApp/VCF, Segmentación Pickup & Reposición Directa de Stock';
 export const CURRENT_RELEASE_DATE = '2026-10-22';
 
 export interface VersionHighlight {
@@ -10,34 +10,34 @@ export interface VersionHighlight {
 
 export const CURRENT_RELEASE_HIGHLIGHTS: VersionHighlight[] = [
   {
+    icon: '📲',
+    title: 'Importador Masivo de WhatsApp & VCF',
+    description: 'Pega listas de pedidos, mensajes de chat o sube archivos .vcf para crear clientes y direcciones automáticamente con detección de duplicados.',
+  },
+  {
+    icon: '🏪',
+    title: 'Segmentación de Clientes Pickup vs Domicilio',
+    description: 'Filtra en un toque entre clientes de mostrador y pedidos con entrega a domicilio, con insignias visuales distintivas.',
+  },
+  {
+    icon: '🛒',
+    title: 'Reposición Directa de Stock desde Inventario',
+    description: 'Botón "Comprar" en artículos con stock bajo que actualiza existencias y registra el gasto contable en un solo paso.',
+  },
+  {
+    icon: '🔔',
+    title: 'Alerta Sonora Realtime en el Dashboard',
+    description: 'El timbre de cocina suena al instante en el Dashboard en cuanto se crea una orden en el mostrador.',
+  },
+  {
+    icon: '🖨️',
+    title: 'Impresión y Auditoría de Cocina',
+    description: 'Exporta o imprime el listado de existencias con formato limpio para auditorías y cuadre físico de despensa.',
+  },
+  {
     icon: '🚨',
-    title: 'Semáforo y Alerta Visual de Pedidos',
-    description: 'Los pedidos próximos a su hora o demorados parpadean con alerta roja y naranja para que ningún pedido se quede sin despachar.',
-  },
-  {
-    icon: '✨',
-    title: 'Extractor Inteligente de WhatsApp & Modo Pickup',
-    description: 'Pega el texto del cliente de WhatsApp y extrae nombre, teléfono y dirección al instante. Soporte para pedidos de solo retiro en el local.',
-  },
-  {
-    icon: '📦',
-    title: 'Módulo Completo de Inventario',
-    description: 'Gestión en tiempo real de insumos y empaques con alertas de stock bajo, reorden y valorización económica del almacén.',
-  },
-  {
-    icon: '⚖️',
-    title: 'Cantidades y Libras en Gastos con Suma al Stock',
-    description: 'Registra compras por libras o paquetes y cárgalas automáticamente a las existencias del inventario de cocina.',
-  },
-  {
-    icon: '⏰',
-    title: 'Avisos de Producción & Recordatorio por WhatsApp',
-    description: 'Avisos matutinos de pedidos agendados, selector de horas de anticipación y plantilla con 1 clic para recordar pedidos futuros al cliente.',
-  },
-  {
-    icon: '🍲',
-    title: 'Auto-guardado de Platos Nuevos en Catálogo',
-    description: 'Cualquier plato nuevo agregado al crear un pedido se guarda automáticamente en la base de datos para futuros despachos.',
+    title: 'Semáforo de Urgencia & Alertas de Producción',
+    description: 'Parpadeo intermitente en comandas próximas a vencer y recordatorios matutinos de pedidos agendados.',
   },
 ];
 
