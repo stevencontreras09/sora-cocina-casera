@@ -136,12 +136,12 @@ export function MenuManagerModal({
   const handleResetDefaults = () => {
     if (
       confirm(
-        '¿Deseas restaurar el menú a las 2 opciones de Lasaña oficiales de Sora (350 y 700 pesos)?'
+        '¿Deseas restaurar el menú al catálogo oficial completo de Sora (Lasañas, Pastelones y Pasteles en Hoja)?'
       )
     ) {
       setItems(DEFAULT_MENU_ITEMS);
       onSaveMenuItems(DEFAULT_MENU_ITEMS);
-      showMsg('Menú restaurado a las 2 Lasañas oficiales.');
+      showMsg('Menú restaurado al catálogo oficial de Sora.');
     }
   };
 

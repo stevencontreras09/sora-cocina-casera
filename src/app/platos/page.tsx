@@ -616,6 +616,22 @@ export default function PlatosRecetasPage() {
                     onChange={(e) => setDishCategory(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-border-sora bg-bg-sora/30 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20"
                   />
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {['Lasañas', 'Pastelón de Papa', 'Pastelón de Berenjena', 'Pastelón de Plátano Maduro', 'Pasteles en Hoja'].map((cat) => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setDishCategory(cat)}
+                        className={`text-[10px] px-2 py-0.5 rounded-lg border transition-all ${
+                          dishCategory === cat
+                            ? 'bg-primary-sora text-white border-primary-sora font-bold'
+                            : 'bg-white text-text-sora/60 hover:text-text-sora border-border-sora'
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="sm:col-span-2">

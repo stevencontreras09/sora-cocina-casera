@@ -1,5 +1,5 @@
-export const CURRENT_APP_VERSION = '1.2.7';
-export const CURRENT_RELEASE_TITLE = 'Sora v1.2.7 • Autocompletado Dinámico de Clientes, Limpieza de Comandas, Módulo Platos & Recetas y Logo PWA';
+export const CURRENT_APP_VERSION = '1.2.8';
+export const CURRENT_RELEASE_TITLE = 'Sora v1.2.8 • Catálogo Completo Menú Navideño, Insumos de Pastelones y Carga Histórica';
 export const CURRENT_RELEASE_DATE = '2026-10-22';
 
 export interface VersionHighlight {
@@ -9,6 +9,21 @@ export interface VersionHighlight {
 }
 
 export const CURRENT_RELEASE_HIGHLIGHTS: VersionHighlight[] = [
+  {
+    icon: '🎄',
+    title: 'Catálogo Oficial Menú Navideño',
+    description: '26 platos con todas las presentaciones: Lasañas, Pastelones de Papa, Berenjena y Plátano Maduro (1 lb, 2 lb y Bandejas de 4, 8, 12 y 24) y Pasteles en Hoja.',
+  },
+  {
+    icon: '🥔',
+    title: 'Insumos & Escandallo de Pastelones',
+    description: 'Almacén de inventario ampliado con papas, berenjenas, plátanos maduros, masa artesanal, hojas y bandejas de aluminio para control de costos.',
+  },
+  {
+    icon: '📈',
+    title: 'Auditoría y Ventas Históricas en Reportes',
+    description: '42 comandas anteriores registradas directamente en la base de datos impactando de forma transparente el balance de Octubre.',
+  },
   {
     icon: '⚡',
     title: 'Autocompletado Dinámico de Clientes',
@@ -20,24 +35,9 @@ export const CURRENT_RELEASE_HIGHLIGHTS: VersionHighlight[] = [
     description: 'Separación organizada en Cocina Activa, Entregados Hoy y Archivo Histórico con botón para limpiar pantalla sin borrar ningún registro.',
   },
   {
-    icon: '🍲',
-    title: 'Módulo de Platos & Escandallo de Recetas',
-    description: 'Gestión de platos a la venta con receta de insumos, cálculo automático de costo de producción (Food Cost), margen de ganancia y descuento de inventario.',
-  },
-  {
     icon: '🎨',
     title: 'Logo Oficial de Sora en Escritorio y Celular',
     description: 'Icono nativo favicon.ico y soporte maskable en PWA para que el logo de Sora se vea nítido al instalar la app en Windows, Mac, Android y iPhone.',
-  },
-  {
-    icon: '💬',
-    title: 'Recordatorio WhatsApp Adaptativo',
-    description: 'Recuadro de recordatorios de pedidos futuros totalmente integrado dentro de la comanda para una visualización impecable sin desbordamientos.',
-  },
-  {
-    icon: '📦',
-    title: 'Descuento Automático de Inventario',
-    description: 'Descuento opcional y automático de carnes, salsas, quesos y pastas del almacén al crear un pedido o marcarlo como entregado.',
   },
 ];
 
