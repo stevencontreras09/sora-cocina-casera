@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { Client } from '@/types/database.types';
 import { MapLocationPicker } from '@/components/maps/MapLocationPicker';
+import { SORA_KITCHEN_COORDS } from '@/lib/routeOptimizer';
+import { extractWhatsAppMessage } from '@/lib/storage';
 import {
   User,
   Phone,
@@ -16,6 +18,11 @@ import {
   Check,
   Compass,
   CheckCircle2,
+  Sparkles,
+  MessageCircle,
+  Truck,
+  ArrowRight,
+  ClipboardPaste,
 } from 'lucide-react';
 
 export interface ClientAddressFormData {
@@ -51,6 +58,7 @@ export function ClientModal({
   const [notes, setNotes] = useState('');
 
   // Datos de la dirección (en la misma vista sin pestañas)
+  const [deliveryMode, setDeliveryMode] = useState<'delivery' | 'pickup'>('delivery');
   const [includeAddress, setIncludeAddress] = useState(true);
   const [addressLabel, setAddressLabel] = useState('Casa');
   const [addressText, setAddressText] = useState('');
@@ -58,6 +66,11 @@ export function ClientModal({
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
   const [isDefaultAddress, setIsDefaultAddress] = useState(true);
+
+  // Extractor inteligente de WhatsApp
+  const [whatsappText, setWhatsappText] = useState('');
+  const [showExtractor, setShowExtractor] = useState(false);
+  const [extractorSuccess, setExtractorSuccess] = useState<string | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +87,10 @@ export function ClientModal({
         initialClient.addresses?.[0];
 
       if (firstAddr) {
+        const isPickup =
+          firstAddr.label?.toLowerCase().includes('retiro') ||
+          firstAddr.address?.toLowerCase().includes('retiro en local');
+        setDeliveryMode(isPickup ? 'pickup' : 'delivery');
         setIncludeAddress(true);
         setAddressLabel(firstAddr.label || 'Casa');
         setAddressText(firstAddr.address || '');
@@ -82,6 +99,7 @@ export function ClientModal({
         setLongitude(firstAddr.longitude);
         setIsDefaultAddress(!!firstAddr.is_default);
       } else {
+        setDeliveryMode('delivery');
         setIncludeAddress(false);
         setAddressLabel('Casa');
         setAddressText('');
@@ -95,6 +113,7 @@ export function ClientModal({
       setName('');
       setPhone('');
       setNotes('');
+      setDeliveryMode('delivery');
       setIncludeAddress(true);
       setAddressLabel('Casa');
       setAddressText('');
@@ -102,9 +121,44 @@ export function ClientModal({
       setLatitude(null);
       setLongitude(null);
       setIsDefaultAddress(true);
+      setWhatsappText('');
+      setShowExtractor(false);
     }
     setError(null);
   }, [initialClient, isOpen]);
+
+  const handleExtractWhatsApp = () => {
+    if (!whatsappText.trim()) return;
+    const res = extractWhatsAppMessage(whatsappText);
+    let count = 0;
+    if (res.name) {
+      setName(res.name);
+      count++;
+    }
+    if (res.phone) {
+      setPhone(res.phone);
+      count++;
+    }
+    if (res.address) {
+      setAddressText(res.address);
+      count++;
+    }
+    if (res.reference) {
+      setAddressReference(res.reference);
+      count++;
+    }
+    if (res.isPickup) {
+      setDeliveryMode('pickup');
+      count++;
+    }
+
+    setExtractorSuccess(
+      count > 0
+        ? `¡Datos detectados y rellenados automáticamente! (${count} campos actualizados)`
+        : 'Texto analizado. Revisa los campos y completa cualquier dato faltante.'
+    );
+    setTimeout(() => setExtractorSuccess(null), 3500);
+  };
 
   if (!isOpen) return null;
 
@@ -128,7 +182,16 @@ export function ClientModal({
     }
 
     let addressData: ClientAddressFormData | null = null;
-    if (includeAddress && addressText.trim()) {
+    if (deliveryMode === 'pickup') {
+      addressData = {
+        label: 'Retiro en Local',
+        address: SORA_KITCHEN_COORDS.address || 'Sora Cocina Casera (Retiro en Local)',
+        reference: 'Cliente habitual de Mostrador / Pickup',
+        latitude: SORA_KITCHEN_COORDS.lat,
+        longitude: SORA_KITCHEN_COORDS.lng,
+        is_default: true,
+      };
+    } else if (includeAddress && addressText.trim()) {
       addressData = {
         label: addressLabel.trim() || 'Casa',
         address: addressText.trim(),
@@ -194,6 +257,72 @@ export function ClientModal({
                 {error}
               </div>
             )}
+
+            {/* BOTÓN / PANEL EXTRACTOR DE MENSAJE DE WHATSAPP */}
+            <div className="rounded-2xl border border-primary-sora/30 bg-gradient-to-r from-primary-sora/10 via-amber-500/5 to-white p-3.5 shadow-2xs space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className="w-7 h-7 rounded-lg bg-primary-sora text-white flex items-center justify-center shadow-xs">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h5 className="font-bold text-xs text-text-sora">
+                      ¿El cliente te escribió por WhatsApp?
+                    </h5>
+                    <p className="text-[10px] text-text-sora/60">
+                      Pega su mensaje para extraer su nombre, teléfono y dirección automáticamente
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowExtractor(!showExtractor)}
+                  className="px-2.5 py-1 rounded-xl bg-white border border-border-sora text-[11px] font-semibold text-text-sora hover:bg-bg-sora shadow-2xs"
+                >
+                  {showExtractor ? 'Ocultar' : 'Pegar WhatsApp'}
+                </button>
+              </div>
+
+              {showExtractor && (
+                <div className="space-y-2 pt-1 animate-in fade-in">
+                  <textarea
+                    rows={3}
+                    placeholder="Pega aquí el mensaje de WhatsApp. Ej: 'Hola soy Carlos Peña 829-555-1234, quiero una lasaña para llevar a la Calle Carmen Mendoza #12, Apto 3B'..."
+                    value={whatsappText}
+                    onChange={(e) => setWhatsappText(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-border-sora bg-white text-text-sora text-xs placeholder:text-text-sora/30 focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora"
+                  />
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={handleExtractWhatsApp}
+                      disabled={!whatsappText.trim()}
+                      className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-primary-sora text-white text-xs font-bold hover:bg-primary-hover transition-all shadow-xs disabled:opacity-50"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Analizar y Auto-llenar Campos</span>
+                    </button>
+                    {whatsappText && (
+                      <button
+                        type="button"
+                        onClick={() => setWhatsappText('')}
+                        className="text-[11px] text-text-sora/50 hover:text-text-sora"
+                      >
+                        Limpiar
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {extractorSuccess && (
+                <div className="p-2 rounded-xl bg-emerald-100 text-emerald-900 border border-emerald-300 text-[11px] font-semibold flex items-center space-x-1.5 animate-in fade-in">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                  <span>{extractorSuccess}</span>
+                </div>
+              )}
+            </div>
 
             {/* SECCIÓN 1: DATOS PERSONALES */}
             <div className="space-y-4">
@@ -263,34 +392,69 @@ export function ClientModal({
               </div>
             </div>
 
-            {/* SECCIÓN 2: DIRECCIÓN DE ENTREGA (EN LA MISMA VISTA) */}
+            {/* SECCIÓN 2: MODALIDAD DE ENTREGA / RETIRO EN LOCAL */}
             <div className="space-y-4 pt-2">
               <div className="flex items-center justify-between pb-2 border-b border-border-sora/60">
                 <div className="flex items-center space-x-2">
                   <MapPin className="w-4 h-4 text-primary-sora" />
                   <h4 className="font-serif font-bold text-sm text-text-sora">
-                    2. Dirección de Entrega (Delivery)
+                    2. Modalidad de Entrega / Dirección
                   </h4>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="include_addr_check"
-                    checked={includeAddress}
-                    onChange={(e) => setIncludeAddress(e.target.checked)}
-                    className="w-4 h-4 rounded text-primary-sora focus:ring-primary-sora border-border-sora cursor-pointer"
-                  />
-                  <label
-                    htmlFor="include_addr_check"
-                    className="text-xs font-medium text-text-sora/80 cursor-pointer select-none"
-                  >
-                    Guardar dirección
-                  </label>
                 </div>
               </div>
 
-              {includeAddress ? (
+              {/* Selector de Modalidad: Delivery vs Solo Pickup */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeliveryMode('delivery');
+                    setIncludeAddress(true);
+                  }}
+                  className={`p-3 rounded-2xl border text-left transition-all flex items-start space-x-2.5 ${
+                    deliveryMode === 'delivery'
+                      ? 'bg-primary-sora/10 border-primary-sora text-primary-sora font-semibold shadow-xs'
+                      : 'bg-white border-border-sora text-text-sora/70 hover:bg-bg-sora'
+                  }`}
+                >
+                  <Truck className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="text-xs font-bold block">🛵 Entrega a Domicilio</span>
+                    <span className="text-[10px] text-text-sora/50 font-normal">Con mapa GPS y dirección</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDeliveryMode('pickup')}
+                  className={`p-3 rounded-2xl border text-left transition-all flex items-start space-x-2.5 ${
+                    deliveryMode === 'pickup'
+                      ? 'bg-emerald-50 border-emerald-500 text-emerald-800 font-semibold shadow-xs'
+                      : 'bg-white border-border-sora text-text-sora/70 hover:bg-bg-sora'
+                  }`}
+                >
+                  <Store className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
+                  <div>
+                    <span className="text-xs font-bold block">🏪 Solo Retiro en Local</span>
+                    <span className="text-[10px] text-text-sora/50 font-normal">Sin mapa ni dirección de envío</span>
+                  </div>
+                </button>
+              </div>
+
+              {deliveryMode === 'pickup' ? (
+                <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200 text-emerald-950 text-xs space-y-2 animate-in fade-in">
+                  <div className="flex items-center space-x-2 font-bold text-emerald-900">
+                    <Store className="w-4 h-4 text-emerald-600" />
+                    <span>Cliente de Mostrador (Solo Pickup)</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-800 leading-relaxed">
+                    Este cliente retirará sus órdenes directamente en el mostrador de <strong>Cocina Sora</strong>. No requiere registro de calles, GPS ni costo de delivery.
+                  </p>
+                  <div className="p-2.5 rounded-xl bg-white/80 border border-emerald-200/60 text-[11px] text-emerald-900 font-medium">
+                    📍 Ubicación asignada: {SORA_KITCHEN_COORDS.address}
+                  </div>
+                </div>
+              ) : includeAddress ? (
                 <div className="space-y-4 bg-bg-sora/30 p-4 rounded-2xl border border-border-sora/80 animate-in fade-in duration-200">
                   {/* Presets de Etiqueta */}
                   <div>
@@ -391,7 +555,7 @@ export function ClientModal({
               ) : (
                 <div className="p-4 text-center bg-bg-sora/40 rounded-2xl border border-border-sora space-y-1">
                   <p className="text-xs text-text-sora/60">
-                    Sin dirección asignada en este momento.
+                    Sin dirección domiciliaria asignada en este momento.
                   </p>
                   <button
                     type="button"

@@ -22,6 +22,8 @@ import {
   getStoredMenuItems,
   saveStoredMenuItems,
   DEFAULT_MENU_ITEMS,
+  calculateOrderUrgency,
+  extractWhatsAppMessage,
 } from '@/lib/storage';
 import { triggerKitchenAlert } from '@/lib/audioAlerts';
 import { ProductionReminderAlerts } from '@/components/alerts/ProductionReminderAlerts';
@@ -55,6 +57,9 @@ import {
   XCircle,
   UtensilsCrossed,
   Store,
+  Sparkles,
+  Calendar,
+  Sun,
 } from 'lucide-react';
 
 export default function VentasPage() {
@@ -108,6 +113,18 @@ export default function VentasPage() {
   // Lista de pedidos reales
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
+
+  // Reloj vivo para actualizar semáforo de tiempo de pedidos en tiempo real
+  const [currentTime, setCurrentTime] = useState<Date>(new Date());
+  useEffect(() => {
+    const interval = setInterval(() => setCurrentTime(new Date()), 25000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Panel rápido para extraer WhatsApp en ventas
+  const [quickWhatsappText, setQuickWhatsappText] = useState('');
+  const [showQuickWhatsapp, setShowQuickWhatsapp] = useState(false);
+  const [quickWhatsappNotice, setQuickWhatsappNotice] = useState<string | null>(null);
 
   // Cargar datos (Supabase + Respaldo Local Auto-guardado)
   const loadData = async () => {
@@ -313,6 +330,80 @@ export default function VentasPage() {
       setDeliveryFee(0);
     }
   }, [feeEstimate, editingOrder, deliveryType]);
+
+  // Extracción rápida de cliente o comanda desde texto copiado de WhatsApp
+  const handleQuickWhatsAppExtract = async () => {
+    if (!quickWhatsappText.trim()) return;
+    const extracted = extractWhatsAppMessage(quickWhatsappText);
+
+    // 1. Si detecta modalidad pickup
+    if (extracted.isPickup) {
+      setDeliveryType('pickup');
+    }
+
+    // 2. Buscar si ya existe el cliente por teléfono o nombre
+    let found = clients.find((c) => {
+      const p1 = cleanPhoneNumber(c.phone);
+      const p2 = cleanPhoneNumber(extracted.phone);
+      return (
+        (p1 && p2 && (p1.includes(p2) || p2.includes(p1))) ||
+        (extracted.name && c.name.toLowerCase().includes(extracted.name.toLowerCase()))
+      );
+    });
+
+    if (found) {
+      setSelectedClientId(found.id);
+      setQuickWhatsappNotice(`¡Cliente "${found.name}" seleccionado automáticamente!`);
+    } else if (extracted.name || extracted.phone) {
+      const newCId = generateUuid();
+      const newAddrId = generateUuid();
+      const isPick = extracted.isPickup;
+      const newClientObj: Client = {
+        id: newCId,
+        name: extracted.name || 'Cliente WhatsApp',
+        phone: extracted.phone || '',
+        notes: 'Creado desde WhatsApp en Ventas',
+        addresses: [
+          {
+            id: newAddrId,
+            client_id: newCId,
+            label: isPick ? 'Retiro en Local' : 'Casa',
+            address: isPick
+              ? (SORA_KITCHEN_COORDS.address || 'Sora Cocina Casera')
+              : (extracted.address || 'Dirección por confirmar'),
+            reference: extracted.reference || null,
+            latitude: isPick ? SORA_KITCHEN_COORDS.lat : null,
+            longitude: isPick ? SORA_KITCHEN_COORDS.lng : null,
+            is_default: true,
+          },
+        ],
+      };
+
+      const updated = [newClientObj, ...clients];
+      setClients(updated);
+      setSelectedClientId(newCId);
+      setSelectedAddressId(newAddrId);
+
+      try {
+        await supabase.from('clients').insert([
+          {
+            id: newCId,
+            name: newClientObj.name,
+            phone: newClientObj.phone,
+            notes: newClientObj.notes,
+          },
+        ]);
+      } catch (_) {}
+
+      setQuickWhatsappNotice(
+        `¡Cliente "${newClientObj.name}" registrado y seleccionado con éxito!`
+      );
+    } else {
+      setQuickWhatsappNotice('No se encontraron datos claros de cliente en el texto.');
+    }
+
+    setTimeout(() => setQuickWhatsappNotice(null), 3500);
+  };
 
   const handleItemChange = (
     index: number,
@@ -731,6 +822,31 @@ export default function VentasPage() {
         `¡Pedido #${orderNumber} creado y guardado automáticamente! 🔔 Campana de cocina activada.`
       );
 
+      // Auto-guardado de platos agregados en el menú de la base de datos para ventas futuras
+      try {
+        const existingDishNames = new Set(menuItems.map((m) => m.name.toLowerCase().trim()));
+        const newDishesToAdd: MenuItem[] = [];
+        items.forEach((it) => {
+          const normName = (it.name || '').toLowerCase().trim();
+          if (normName && !existingDishNames.has(normName)) {
+            existingDishNames.add(normName);
+            newDishesToAdd.push({
+              id: generateUuid(),
+              name: it.name.trim(),
+              price: it.price || 0,
+              category: 'Platos',
+              is_available: true,
+            });
+          }
+        });
+        if (newDishesToAdd.length > 0) {
+          const updatedMenu = [...menuItems, ...newDishesToAdd];
+          handleSaveMenuItems(updatedMenu);
+        }
+      } catch (e) {
+        console.warn('Auto-guardado de plato en menú:', e);
+      }
+
       // Resetear formulario con el primer plato del menú
       const defaultDish =
         menuItems[0] || { name: 'Lasaña Casera (Porción Individual)', price: 350 };
@@ -875,9 +991,56 @@ export default function VentasPage() {
             <form onSubmit={handleSubmitOrder} className="space-y-5">
               {/* 1. SELECCIÓN DE CLIENTE */}
               <div className="space-y-2">
-                <label className="block text-xs font-semibold text-text-sora/80 uppercase tracking-wider">
-                  1. Seleccionar Cliente *
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-text-sora/80 uppercase tracking-wider">
+                    1. Seleccionar Cliente *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickWhatsapp(!showQuickWhatsapp)}
+                    className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-xl bg-primary-sora/10 text-primary-sora border border-primary-sora/25 hover:bg-primary-sora hover:text-white transition-all text-[11px] font-bold"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>{showQuickWhatsapp ? 'Cerrar' : '✨ Pegar WhatsApp'}</span>
+                  </button>
+                </div>
+
+                {showQuickWhatsapp && (
+                  <div className="p-3 rounded-2xl bg-gradient-to-r from-primary-sora/10 via-amber-500/5 to-white border border-primary-sora/30 space-y-2 animate-in fade-in">
+                    <textarea
+                      rows={2}
+                      placeholder="Pega el mensaje de WhatsApp aquí para extraer nombre, teléfono, dirección o retiro en local..."
+                      value={quickWhatsappText}
+                      onChange={(e) => setQuickWhatsappText(e.target.value)}
+                      className="w-full p-2.5 rounded-xl border border-border-sora bg-white text-text-sora text-xs placeholder:text-text-sora/30 focus:outline-none focus:ring-1 focus:ring-primary-sora"
+                    />
+                    <div className="flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={handleQuickWhatsAppExtract}
+                        disabled={!quickWhatsappText.trim()}
+                        className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-primary-sora text-white text-xs font-bold hover:bg-primary-hover transition-all disabled:opacity-50"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Extraer y Seleccionar</span>
+                      </button>
+                      {quickWhatsappText && (
+                        <button
+                          type="button"
+                          onClick={() => setQuickWhatsappText('')}
+                          className="text-[11px] text-text-sora/50 hover:text-text-sora"
+                        >
+                          Limpiar
+                        </button>
+                      )}
+                    </div>
+                    {quickWhatsappNotice && (
+                      <p className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 p-2 rounded-lg border border-emerald-200">
+                        {quickWhatsappNotice}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {clients.length === 0 ? (
                   <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-start space-x-2">
@@ -1143,15 +1306,41 @@ export default function VentasPage() {
                     <span className="font-semibold text-[11px]">Recordatorio de Producción:</span>
                   </div>
 
-                  <select
-                    value={productionReminderTime}
-                    onChange={(e) => setProductionReminderTime(e.target.value)}
-                    className="px-2.5 py-1 rounded-xl border border-border-sora bg-white text-text-sora text-[11px] font-medium focus:outline-none focus:ring-1 focus:ring-primary-sora"
-                  >
-                    <option value="30m">Avisar 30 min antes</option>
-                    <option value="60m">Avisar 1 hora antes (Recomendado)</option>
-                    <option value="120m">Avisar 2 horas antes</option>
-                  </select>
+                  <div className="flex items-center space-x-2">
+                    <select
+                      value={
+                        ['30m', '45m', '60m', '120m', '180m', '240m', 'inicio_dia'].includes(productionReminderTime)
+                          ? productionReminderTime
+                          : 'custom'
+                      }
+                      onChange={(e) => {
+                        if (e.target.value === 'custom') {
+                          setProductionReminderTime('11:00');
+                        } else {
+                          setProductionReminderTime(e.target.value);
+                        }
+                      }}
+                      className="px-2.5 py-1 rounded-xl border border-border-sora bg-white text-text-sora text-[11px] font-medium focus:outline-none focus:ring-1 focus:ring-primary-sora"
+                    >
+                      <option value="30m">Avisar 30 min antes</option>
+                      <option value="45m">Avisar 45 min antes</option>
+                      <option value="60m">Avisar 1 hora antes (Recomendado)</option>
+                      <option value="120m">Avisar 2 horas antes</option>
+                      <option value="180m">Avisar 3 horas antes</option>
+                      <option value="240m">Avisar 4 horas antes</option>
+                      <option value="inicio_dia">Avisar al inicio del día (8:00 AM)</option>
+                      <option value="custom">⏰ Hora exacta manual...</option>
+                    </select>
+
+                    {!['30m', '45m', '60m', '120m', '180m', '240m', 'inicio_dia'].includes(productionReminderTime) && (
+                      <input
+                        type="time"
+                        value={productionReminderTime}
+                        onChange={(e) => setProductionReminderTime(e.target.value)}
+                        className="px-2 py-0.5 rounded-lg border border-primary-sora/40 bg-white text-xs font-semibold text-primary-sora focus:outline-none focus:ring-1 focus:ring-primary-sora"
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1586,18 +1775,30 @@ export default function VentasPage() {
                     );
 
                     const isBeingEdited = editingOrder?.id === order.id;
+                    const urgency = calculateOrderUrgency(order, currentTime);
+                    const isFutureDay = Boolean(order.delivery_date && order.delivery_date > todayStr);
+
+                    const futureWhatsAppMsg = encodeURIComponent(
+                      `¡Hola ${order.client_name}! Te saludamos de Sora Cocina Casera 🍲.\n\n` +
+                        `Te confirmamos con gusto tu pedido #${order.order_number} agendado para el ${order.delivery_date}${order.delivery_time ? ` a las ${order.delivery_time}` : ''}.\n\n` +
+                        `• Platos:\n` +
+                        (order.items || []).map((it) => `  - ${it.quantity}x ${it.name} (${formatCurrency(it.subtotal)})`).join('\n') +
+                        (orderFee > 0 ? `\n• Envío a Domicilio: ${formatCurrency(orderFee)}` : order.delivery_user_name === 'Retiro en Local' || order.delivery_type === 'pickup' ? `\n• Modalidad: Retiro en Local Sora` : '') +
+                        `\n• Total: ${formatCurrency(order.total)}` +
+                        `\n\nTu orden está en nuestra agenda de horneado artesanal. ¿Todo listo para recibirlo? ¡Que pases un excelente día!`
+                    );
 
                     return (
                       <div
                         key={order.id}
-                        className={`p-4 rounded-2xl bg-white border transition-all space-y-2.5 ${
+                        className={`p-4 rounded-2xl border transition-all space-y-2.5 ${
                           isBeingEdited
-                            ? 'border-amber-500 ring-2 ring-amber-500/20 shadow-md'
-                            : 'border-border-sora shadow-xs hover:border-primary-sora/40'
+                            ? 'border-amber-500 ring-2 ring-amber-500/20 shadow-md bg-white'
+                            : `${urgency.borderClass} ${urgency.bgTintClass} ${urgency.isBlinking ? 'shadow-md shadow-rose-500/10' : 'shadow-xs'}`
                         }`}
                       >
-                        {/* Cabecera de la tarjeta */}
-                        <div className="flex items-center justify-between">
+                        {/* Cabecera de la tarjeta con Semáforo y Estados Modernos */}
+                        <div className="flex items-center justify-between gap-1 flex-wrap">
                           <div className="flex items-center space-x-2">
                             <span className="font-mono text-xs font-bold text-primary-sora bg-bg-sora px-2 py-0.5 rounded-md border border-border-sora">
                               {order.order_number}
@@ -1607,19 +1808,36 @@ export default function VentasPage() {
                             </span>
                           </div>
 
-                          <span
-                            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border uppercase ${
-                              (order.status || '').toLowerCase() === 'entregado'
-                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                : (order.status || '').toLowerCase() === 'en preparacion'
-                                ? 'bg-blue-50 text-blue-800 border-blue-200'
-                                : (order.status || '').toLowerCase() === 'cancelado'
-                                ? 'bg-red-50 text-red-800 border-red-200'
-                                : 'bg-amber-50 text-amber-800 border-amber-200'
-                            }`}
-                          >
-                            {order.status}
-                          </span>
+                          <div className="flex items-center space-x-1.5 flex-wrap gap-1">
+                            {/* Badge de Urgencia Semáforo */}
+                            {urgency.urgencyLevel !== 'normal' && (
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full border flex items-center ${urgency.badgeClass}`}>
+                                {urgency.badgeLabel}
+                              </span>
+                            )}
+
+                            {/* Estado con Iconografía Renovada */}
+                            <span
+                              className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border uppercase flex items-center space-x-1 ${
+                                (order.status || '').toLowerCase() === 'entregado'
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                  : (order.status || '').toLowerCase() === 'en preparacion'
+                                  ? 'bg-amber-100 text-amber-900 border-amber-300 font-bold'
+                                  : (order.status || '').toLowerCase() === 'en camino'
+                                  ? 'bg-blue-50 text-blue-800 border-blue-200 font-bold'
+                                  : (order.status || '').toLowerCase() === 'cancelado'
+                                  ? 'bg-red-50 text-red-800 border-red-200'
+                                  : 'bg-bg-sora text-text-sora/80 border-border-sora'
+                              }`}
+                            >
+                              {(order.status || '').toLowerCase() === 'en preparacion' && <Flame className="w-3 h-3 text-primary-sora inline mr-0.5" />}
+                              {(order.status || '').toLowerCase() === 'en camino' && <Truck className="w-3 h-3 text-blue-600 inline mr-0.5" />}
+                              {(order.status || '').toLowerCase() === 'entregado' && <CheckCircle2 className="w-3 h-3 text-emerald-600 inline mr-0.5" />}
+                              {(order.status || '').toLowerCase() === 'cancelado' && <XCircle className="w-3 h-3 text-red-600 inline mr-0.5" />}
+                              {(order.status || '').toLowerCase() === 'pendiente' && <Clock className="w-3 h-3 text-text-sora/60 inline mr-0.5" />}
+                              <span>{order.status}</span>
+                            </span>
+                          </div>
                         </div>
 
                         {/* Horario y Fecha Prometida */}
@@ -1738,17 +1956,30 @@ export default function VentasPage() {
                               <span>Rastreo</span>
                             </a>
 
-                            {/* Notificación de WhatsApp */}
-                            <a
-                              href={`https://wa.me/${cleanPhone}?text=${whatsappMsg}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-whatsapp hover:bg-[#20bd5a] text-white text-[11px] font-semibold transition-all shadow-xs active:scale-95"
-                              title="Enviar resumen y link de rastreo por WhatsApp"
-                            >
-                              <MessageCircle className="w-3.5 h-3.5" />
-                              <span>WhatsApp</span>
-                            </a>
+                            {/* Notificación de WhatsApp / Recordatorio Futuro */}
+                            {isFutureDay ? (
+                              <a
+                                href={`https://wa.me/${cleanPhone}?text=${futureWhatsAppMsg}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-semibold transition-all shadow-xs active:scale-95"
+                                title="Enviar recordatorio de pedido futuro al cliente por WhatsApp"
+                              >
+                                <MessageCircle className="w-3.5 h-3.5" />
+                                <span>Recordar WhatsApp</span>
+                              </a>
+                            ) : (
+                              <a
+                                href={`https://wa.me/${cleanPhone}?text=${whatsappMsg}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-whatsapp hover:bg-[#20bd5a] text-white text-[11px] font-semibold transition-all shadow-xs active:scale-95"
+                                title="Enviar resumen y link de rastreo por WhatsApp"
+                              >
+                                <MessageCircle className="w-3.5 h-3.5" />
+                                <span>WhatsApp</span>
+                              </a>
+                            )}
                           </div>
                         </div>
                       </div>

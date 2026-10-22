@@ -26,6 +26,7 @@ import {
   UserCog,
   ShieldAlert,
   Download,
+  Boxes,
 } from 'lucide-react';
 
 interface NavItem {
@@ -61,6 +62,14 @@ const NAVIGATION_ITEMS: NavItem[] = [
     allowedRoles: ['admin'],
     permissionKey: 'clientes',
     description: 'Directorio y geolocalización',
+  },
+  {
+    name: 'Inventario',
+    href: '/inventario',
+    icon: Boxes,
+    allowedRoles: ['admin', 'coadmin'],
+    permissionKey: 'inventario',
+    description: 'Control de stock y reorden',
   },
   {
     name: 'Gastos',

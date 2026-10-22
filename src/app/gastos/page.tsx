@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { AppNavigation } from '@/components/layout/AppNavigation';
 import { useAuth } from '@/context/AuthContext';
-import { Expense, ExpenseCategory } from '@/types/database.types';
+import { Expense, ExpenseCategory, InventoryItem, InventoryUnit } from '@/types/database.types';
 import { createClient } from '@/lib/supabase/client';
 import { formatCurrency } from '@/lib/utils';
 import {
@@ -11,6 +11,8 @@ import {
   getStoredExpenses,
   isValidUuid,
   generateUuid,
+  getStoredInventory,
+  saveStoredInventory,
 } from '@/lib/storage';
 import {
   Receipt,
@@ -23,6 +25,9 @@ import {
   User as UserIcon,
   Trash2,
   RefreshCw,
+  Scale,
+  Boxes,
+  Package,
 } from 'lucide-react';
 
 const CATEGORIES: { id: ExpenseCategory | 'todos'; label: string; color: string }[] = [
@@ -53,8 +58,17 @@ export default function GastosPage() {
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState<ExpenseCategory>('insumos');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [quantity, setQuantity] = useState('');
+  const [unit, setUnit] = useState<InventoryUnit>('lb');
+  const [loadToInventory, setLoadToInventory] = useState(false);
+  const [selectedInventoryItemId, setSelectedInventoryItemId] = useState('');
+  const [inventoryList, setInventoryList] = useState<InventoryItem[]>([]);
   const [formSuccess, setFormSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setInventoryList(getStoredInventory());
+  }, []);
 
   // Cargar gastos reales de Supabase con respaldo local
   const loadExpenses = async () => {
@@ -94,6 +108,10 @@ export default function GastosPage() {
     const newId = generateUuid();
     const parsedAmount = parseFloat(amount);
 
+    const numQty = quantity ? parseFloat(quantity) : undefined;
+    const unitCost =
+      numQty && numQty > 0 ? Math.round((parsedAmount / numQty) * 100) / 100 : undefined;
+
     const newExpense: Expense = {
       id: newId,
       description: description.trim(),
@@ -102,6 +120,10 @@ export default function GastosPage() {
       date: date,
       created_by: user?.id,
       created_by_name: profile?.full_name || user?.email?.split('@')[0] || 'Personal Sora',
+      quantity: numQty,
+      unit: numQty ? unit : undefined,
+      unit_cost: unitCost,
+      inventory_item_id: loadToInventory ? selectedInventoryItemId : undefined,
     };
 
     // 1. Guardar de inmediato en almacenamiento local (cero pérdida de datos)
@@ -109,7 +131,29 @@ export default function GastosPage() {
     setExpenses(updated);
     saveStoredExpenses(updated);
 
-    // 2. Guardar en Supabase
+    // 2. Si se marcó cargar al inventario, sumar existencias automáticamente
+    if (loadToInventory && selectedInventoryItemId && numQty && numQty > 0) {
+      try {
+        const inv = getStoredInventory();
+        const updatedInv = inv.map((item) => {
+          if (item.id === selectedInventoryItemId) {
+            return {
+              ...item,
+              current_stock: Math.round((item.current_stock + numQty) * 10) / 10,
+              cost_per_unit: unitCost || item.cost_per_unit,
+              last_restocked_at: new Date().toISOString(),
+            };
+          }
+          return item;
+        });
+        saveStoredInventory(updatedInv);
+        setInventoryList(updatedInv);
+      } catch (invErr) {
+        console.warn('Error al actualizar inventario desde gasto:', invErr);
+      }
+    }
+
+    // 3. Guardar en Supabase
     try {
       const payload: any = {
         id: newId,
@@ -130,6 +174,9 @@ export default function GastosPage() {
 
     setDescription('');
     setAmount('');
+    setQuantity('');
+    setLoadToInventory(false);
+    setSelectedInventoryItemId('');
     setIsSubmitting(false);
     setFormSuccess(true);
 
@@ -380,6 +427,79 @@ export default function GastosPage() {
                 />
               </div>
 
+              {/* Unidad de Medida (Libras, Kilos, etc.) y Carga a Inventario */}
+              <div className="min-w-0">
+                <label className="block text-xs font-semibold text-text-sora/80 mb-1 uppercase tracking-wider">
+                  Cantidad / Libras (Opcional)
+                </label>
+                <div className="relative">
+                  <Scale className="w-4 h-4 absolute left-3 top-3 text-text-sora/40 pointer-events-none" />
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    placeholder="Ej: 25.5"
+                    value={quantity}
+                    onChange={(e) => setQuantity(e.target.value)}
+                    className="w-full min-w-0 pl-9 pr-3 py-2 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
+                  />
+                </div>
+              </div>
+
+              <div className="min-w-0">
+                <label className="block text-xs font-semibold text-text-sora/80 mb-1 uppercase tracking-wider">
+                  Unidad de Medida
+                </label>
+                <select
+                  value={unit}
+                  onChange={(e) => setUnit(e.target.value as InventoryUnit)}
+                  className="w-full min-w-0 px-3 py-2 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
+                >
+                  <option value="lb">Libras (lb)</option>
+                  <option value="kg">Kilogramos (kg)</option>
+                  <option value="ud">Unidades (ud)</option>
+                  <option value="paq">Paquetes (paq)</option>
+                  <option value="L">Litros (L)</option>
+                  <option value="gal">Galones (gal)</option>
+                </select>
+              </div>
+
+              <div className="sm:col-span-2 min-w-0 flex flex-col justify-end">
+                <div className="p-2 rounded-xl bg-bg-sora/50 border border-border-sora flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="load_inv_check"
+                    checked={loadToInventory}
+                    onChange={(e) => setLoadToInventory(e.target.checked)}
+                    className="w-4 h-4 rounded text-primary-sora focus:ring-primary-sora border-border-sora cursor-pointer"
+                  />
+                  <label htmlFor="load_inv_check" className="text-xs font-semibold text-text-sora cursor-pointer select-none">
+                    📦 ¿Cargar al Inventario de Cocina?
+                  </label>
+                </div>
+              </div>
+
+              {loadToInventory && (
+                <div className="sm:col-span-2 xl:col-span-4 p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-xs space-y-1.5 animate-in fade-in">
+                  <label className="block font-bold text-amber-950 uppercase tracking-wider text-[11px]">
+                    Selecciona el Insumo a Sumar al Stock:
+                  </label>
+                  <select
+                    value={selectedInventoryItemId}
+                    onChange={(e) => setSelectedInventoryItemId(e.target.value)}
+                    required={loadToInventory}
+                    className="w-full px-3 py-2 rounded-xl border border-amber-300 bg-white text-text-sora text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary-sora/20"
+                  >
+                    <option value="">-- Elige qué insumo se reabastece ({inventoryList.length}) --</option>
+                    {inventoryList.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} (Stock actual: {item.current_stock} {item.unit})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="sm:col-span-2 xl:col-span-4 flex justify-end space-x-2 pt-2">
                 <button
                   type="button"
@@ -466,6 +586,15 @@ export default function GastosPage() {
                   <p className="text-sm font-medium text-text-sora">
                     {exp.description}
                   </p>
+                  {exp.quantity && exp.unit && (
+                    <div className="flex items-center space-x-2 text-[11px] text-amber-900 bg-amber-50/80 px-2 py-0.5 rounded-md border border-amber-200/60 w-fit mt-1">
+                      <Scale className="w-3 h-3 text-amber-700" />
+                      <span>
+                        Cantidad: <strong>{exp.quantity} {exp.unit}</strong>
+                        {exp.unit_cost ? ` • RD$ ${exp.unit_cost.toLocaleString('es-DO')}/${exp.unit}` : ''}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between sm:justify-end space-x-4">

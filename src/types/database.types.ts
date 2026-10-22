@@ -7,7 +7,8 @@ export type AppPermission =
   | 'gastos'
   | 'delivery'
   | 'reportes'
-  | 'usuarios';
+  | 'usuarios'
+  | 'inventario';
 
 export interface PermissionDefinition {
   id: AppPermission;
@@ -24,6 +25,22 @@ export interface Profile {
   phone?: string | null;
   is_active?: boolean;
   permissions?: AppPermission[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type InventoryUnit = 'lb' | 'kg' | 'ud' | 'paq' | 'L' | 'gal';
+
+export interface InventoryItem {
+  id: string;
+  name: string;
+  unit: InventoryUnit;
+  current_stock: number;
+  min_alert_stock: number;
+  cost_per_unit?: number;
+  category: 'insumos' | 'empaques' | 'otros';
+  last_restocked_at?: string;
+  notes?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -45,6 +62,10 @@ export interface Expense {
   created_by?: string;
   created_by_name?: string;
   created_at?: string;
+  quantity?: number;
+  unit?: InventoryUnit;
+  unit_cost?: number;
+  inventory_item_id?: string;
 }
 
 export interface OrderItem {
@@ -163,6 +184,7 @@ export const ROLE_INFO: Record<
       '/gastos',
       '/delivery',
       '/reportes',
+      '/inventario',
       '/admin',
       '/admin/usuarios',
     ],
@@ -170,9 +192,9 @@ export const ROLE_INFO: Record<
   },
   coadmin: {
     label: 'Co-Administrador',
-    description: 'Gestión de gastos y despacho de delivery',
+    description: 'Gestión de gastos, inventario y despacho de delivery',
     defaultRoute: '/gastos',
-    allowedRoutes: ['/gastos', '/delivery'],
+    allowedRoutes: ['/gastos', '/inventario', '/delivery', '/ventas'],
     badgeColor: 'bg-blue-100 text-blue-800 border-blue-300', // Azul suave
   },
   delivery: {
@@ -227,11 +249,17 @@ export const APP_PERMISSIONS: PermissionDefinition[] = [
     description: 'Crear, editar roles, asignar accesos y eliminar cuentas',
     route: '/admin/usuarios',
   },
+  {
+    id: 'inventario',
+    label: 'Control de Inventario',
+    description: 'Existencias de insumos, empaques, stock mínimo y alertas',
+    route: '/inventario',
+  },
 ];
 
 export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, AppPermission[]> = {
-  admin: ['dashboard', 'ventas', 'clientes', 'gastos', 'delivery', 'reportes', 'usuarios'],
-  coadmin: ['gastos', 'delivery', 'ventas'],
+  admin: ['dashboard', 'ventas', 'clientes', 'gastos', 'delivery', 'reportes', 'usuarios', 'inventario'],
+  coadmin: ['gastos', 'delivery', 'ventas', 'inventario'],
   delivery: ['delivery'],
 };
 

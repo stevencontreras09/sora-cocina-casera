@@ -16,6 +16,9 @@ import {
   MapPin,
   ChevronDown,
   ChevronUp,
+  Sun,
+  MessageCircle,
+  Sparkles,
 } from 'lucide-react';
 
 interface ProductionReminderAlertsProps {
@@ -55,15 +58,31 @@ export function ProductionReminderAlerts({
     if (isNaN(h)) return true;
 
     const deliveryTotalMinutes = h * 60 + (m || 0);
-    // Margen de anticipación para cocinar (por defecto 60 minutos antes)
+    // Margen de anticipación configurable para cocinar
     let leadMinutes = 60;
     if (o.production_reminder_time === '30m') leadMinutes = 30;
-    if (o.production_reminder_time === '120m') leadMinutes = 120;
+    else if (o.production_reminder_time === '45m') leadMinutes = 45;
+    else if (o.production_reminder_time === '120m') leadMinutes = 120;
+    else if (o.production_reminder_time === '180m') leadMinutes = 180;
+    else if (o.production_reminder_time === '240m') leadMinutes = 240;
+    else if (o.production_reminder_time === 'inicio_dia') {
+      leadMinutes = Math.max(0, deliveryTotalMinutes - 8 * 60); // 8:00 AM
+    } else if (o.production_reminder_time && o.production_reminder_time.includes(':')) {
+      const [rh, rm] = o.production_reminder_time.split(':').map((n) => parseInt(n, 10));
+      if (!isNaN(rh)) {
+        return currentMinutes >= rh * 60 + (rm || 0);
+      }
+    }
 
     const productionTargetMinutes = deliveryTotalMinutes - leadMinutes;
 
     // Si ya estamos en o pasamos la hora de producción
     return currentMinutes >= productionTargetMinutes;
+  });
+
+  // Pedidos agendados para entregar hoy
+  const todayScheduledOrders = activeScheduledOrders.filter((o) => {
+    return o.delivery_date === todayStr;
   });
 
   // 2. Pedidos programados para fechas futuras (ej. mañana, dentro de 3 días)
@@ -87,12 +106,54 @@ export function ProductionReminderAlerts({
     });
   }, [urgentProductionOrders, notifiedOrderIds]);
 
-  if (urgentProductionOrders.length === 0 && futureScheduledOrders.length === 0) {
+  if (urgentProductionOrders.length === 0 && futureScheduledOrders.length === 0 && todayScheduledOrders.length === 0) {
     return null;
   }
 
   return (
     <div className="space-y-4 animate-in fade-in duration-300">
+      {/* AVISO RESUMEN MATUTINO (PEDIDOS DEL DÍA) */}
+      {todayScheduledOrders.length > 0 && (
+        <div className="rounded-3xl border border-amber-300 bg-gradient-to-r from-amber-500/10 via-amber-50/80 to-white p-4 sm:p-5 shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2.5">
+              <span className="w-8 h-8 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-xs">
+                <Sun className="w-4.5 h-4.5" />
+              </span>
+              <div>
+                <h3 className="font-serif font-bold text-sm sm:text-base text-amber-950">
+                  ☀️ Resumen Matutino de Entregas (Hoy)
+                </h3>
+                <p className="text-[11px] text-amber-800">
+                  Tienes <strong>{todayScheduledOrders.length} {todayScheduledOrders.length === 1 ? 'pedido agendado' : 'pedidos agendados'}</strong> para entregar hoy.
+                </p>
+              </div>
+            </div>
+
+            <span className="text-[11px] font-bold text-amber-900 bg-white/90 border border-amber-300 px-2.5 py-1 rounded-xl shadow-2xs">
+              {todayScheduledOrders.reduce((sum, o) => sum + (o.items?.reduce((is, it) => is + it.quantity, 0) || 1), 0)} porciones hoy
+            </span>
+          </div>
+
+          <div className="flex flex-wrap gap-2 pt-1 border-t border-amber-200/60">
+            {todayScheduledOrders.map((o) => (
+              <div
+                key={o.id}
+                className="px-3 py-1.5 rounded-xl bg-white border border-amber-200 text-xs flex items-center space-x-2 shadow-2xs"
+              >
+                <Clock className="w-3.5 h-3.5 text-amber-600" />
+                <span className="font-bold text-amber-950">{o.delivery_time || 'Sin hora'}</span>
+                <span className="text-text-sora/40">•</span>
+                <span className="font-medium text-text-sora">{o.client_name?.split(' ')[0]}</span>
+                <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded font-mono font-bold">
+                  #{o.order_number}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 1. SECCIÓN DE PEDIDOS URGENTES (HORA DE COCINAR AHORA) */}
       {urgentProductionOrders.length > 0 && (
         <div className="rounded-3xl border-2 border-primary-sora/40 bg-gradient-to-r from-primary-sora/10 via-white to-amber-500/10 p-5 shadow-sora">
@@ -242,10 +303,24 @@ export function ProductionReminderAlerts({
                       </p>
                     </div>
 
-                    <div className="pt-2 border-t border-border-sora/50 flex items-center justify-between text-[11px]">
-                      <span className="text-text-sora/60">
-                        Recordatorio: 1h antes
-                      </span>
+                    <div className="pt-2 border-t border-border-sora/50 flex items-center justify-between gap-1 text-[11px]">
+                      <a
+                        href={`https://wa.me/${(order.client_phone || '').replace(/\D/g, '')}?text=${encodeURIComponent(
+                          `¡Hola ${order.client_name}! Te saludamos de Sora Cocina Casera 🍲.\n\n` +
+                          `Te confirmamos con gusto tu pedido #${order.order_number} agendado para el ${dateLabel}${order.delivery_time ? ` a las ${order.delivery_time}` : ''}.\n\n` +
+                          `• Platos:\n` +
+                          order.items.map((i) => `  - ${i.quantity}x ${i.name}`).join('\n') +
+                          `\n• Total: RD$ ${order.total?.toLocaleString('es-DO')}` +
+                          `\n\nTu orden está en nuestra lista de horneado artesanal. ¿Todo listo para recibirlo? ¡Que pases un excelente día!`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[10px] transition-all shadow-2xs"
+                        title="Enviar recordatorio por WhatsApp"
+                      >
+                        <MessageCircle className="w-3 h-3" />
+                        <span>Recordar WhatsApp</span>
+                      </a>
                       <span className="font-bold text-text-sora">
                         RD$ {order.total?.toLocaleString('es-DO')}
                       </span>

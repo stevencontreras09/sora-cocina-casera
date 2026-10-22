@@ -1,6 +1,6 @@
-export const CURRENT_APP_VERSION = '1.2.4';
-export const CURRENT_RELEASE_TITLE = 'Sora v1.2.4 • Desglose Detallado de Envío, Fix iPad & Logo Oficial';
-export const CURRENT_RELEASE_DATE = '2026-10-21';
+export const CURRENT_APP_VERSION = '1.2.5';
+export const CURRENT_RELEASE_TITLE = 'Sora v1.2.5 • Semáforo de Pedidos, Extractor WhatsApp, Inventario & Libras en Gastos';
+export const CURRENT_RELEASE_DATE = '2026-10-22';
 
 export interface VersionHighlight {
   icon: string;
@@ -10,24 +10,34 @@ export interface VersionHighlight {
 
 export const CURRENT_RELEASE_HIGHLIGHTS: VersionHighlight[] = [
   {
-    icon: '🧾',
-    title: 'Desglose Transparente de Envío al Cliente',
-    description: 'En el enlace de rastreo compartido por WhatsApp, el cliente ve con exactitud el Subtotal de la comida, el Costo de Delivery a domicilio y el Total final.',
+    icon: '🚨',
+    title: 'Semáforo y Alerta Visual de Pedidos',
+    description: 'Los pedidos próximos a su hora o demorados parpadean con alerta roja y naranja para que ningún pedido se quede sin despachar.',
   },
   {
-    icon: '📱',
-    title: 'Optimización Visual en iPad y Tablets',
-    description: 'Corregida la distorsión del formulario de egresos en iPad (evitando solapamientos entre el selector de fecha y la categoría).',
+    icon: '✨',
+    title: 'Extractor Inteligente de WhatsApp & Modo Pickup',
+    description: 'Pega el texto del cliente de WhatsApp y extrae nombre, teléfono y dirección al instante. Soporte para pedidos de solo retiro en el local.',
   },
   {
-    icon: '🎨',
-    title: 'Logo Oficial de Sora Integrado',
-    description: 'Se incorporó el logo oficial circular en el ícono de inicio PWA, pantalla de login, barra de navegación y página de rastreo.',
+    icon: '📦',
+    title: 'Módulo Completo de Inventario',
+    description: 'Gestión en tiempo real de insumos y empaques con alertas de stock bajo, reorden y valorización económica del almacén.',
   },
   {
-    icon: '📍',
-    title: 'Seguimiento del Repartidor en Vivo (GPS)',
-    description: 'Visualización en vivo de la trayectoria del motorista y tiempo estimado para clientes y equipo.',
+    icon: '⚖️',
+    title: 'Cantidades y Libras en Gastos con Suma al Stock',
+    description: 'Registra compras por libras o paquetes y cárgalas automáticamente a las existencias del inventario de cocina.',
+  },
+  {
+    icon: '⏰',
+    title: 'Avisos de Producción & Recordatorio por WhatsApp',
+    description: 'Avisos matutinos de pedidos agendados, selector de horas de anticipación y plantilla con 1 clic para recordar pedidos futuros al cliente.',
+  },
+  {
+    icon: '🍲',
+    title: 'Auto-guardado de Platos Nuevos en Catálogo',
+    description: 'Cualquier plato nuevo agregado al crear un pedido se guarda automáticamente en la base de datos para futuros despachos.',
   },
 ];
 

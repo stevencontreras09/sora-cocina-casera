@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import { Order, OrderStatus } from '@/types/database.types';
 import { formatCurrency, cleanPhoneNumber } from '@/lib/utils';
-import { getStoredOrders, saveStoredOrders, isValidUuid } from '@/lib/storage';
+import { getStoredOrders, saveStoredOrders, isValidUuid, calculateOrderUrgency } from '@/lib/storage';
 import { triggerKitchenAlert } from '@/lib/audioAlerts';
 import {
   Truck,
@@ -487,23 +487,30 @@ export default function DeliveryMobilePage() {
 
               const isPaid = order.payment_status === 'pagado';
               const isEnCamino = (order.status || '').toLowerCase() === 'en camino';
+              const urgency = calculateOrderUrgency(order);
 
               return (
                 <div
                   key={order.id}
                   className={`bg-white rounded-3xl p-5 border shadow-sora transition-all space-y-4 ${
-                    isEnCamino ? 'border-primary-sora/60 ring-2 ring-primary-sora/10' : 'border-border-sora'
+                    isEnCamino
+                      ? 'border-blue-500 ring-2 ring-blue-500/20'
+                      : urgency.urgencyLevel === 'overdue' || urgency.urgencyLevel === 'critical'
+                      ? `${urgency.borderClass} ${urgency.bgTintClass}`
+                      : 'border-border-sora'
                   }`}
                 >
                   {/* BADGE DESTACADO DE PAGO EN MONEDA DOP */}
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center space-x-2 min-w-0">
                       <span className="font-mono text-xs font-bold text-primary-sora bg-bg-sora px-2.5 py-1 rounded-xl border border-border-sora">
                         #{order.order_number}
                       </span>
-                      <span className="text-[11px] font-semibold text-text-sora/50">
-                        {order.created_at}
-                      </span>
+                      {urgency.urgencyLevel !== 'normal' && (
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full border ${urgency.badgeClass}`}>
+                          {urgency.badgeLabel}
+                        </span>
+                      )}
                     </div>
 
                     {isPaid ? (
