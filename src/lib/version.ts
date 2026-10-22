@@ -1,5 +1,5 @@
-export const CURRENT_APP_VERSION = '1.2.2';
-export const CURRENT_RELEASE_TITLE = 'Sora v1.2.2 • Pedidos en Tiempo Real & Rastreo en Vivo';
+export const CURRENT_APP_VERSION = '1.2.3';
+export const CURRENT_RELEASE_TITLE = 'Sora v1.2.3 • Seguimiento GPS en Vivo & Retiro en Local';
 export const CURRENT_RELEASE_DATE = '2026-10-21';
 
 export interface VersionHighlight {
@@ -10,24 +10,24 @@ export interface VersionHighlight {
 
 export const CURRENT_RELEASE_HIGHLIGHTS: VersionHighlight[] = [
   {
+    icon: '📍',
+    title: 'Seguimiento del Repartidor en Vivo (GPS)',
+    description: 'El cliente ve en tiempo real en el mapa dónde viene su motorista, los kilómetros restantes y el tiempo estimado de llegada para mayor tranquilidad.',
+  },
+  {
+    icon: '🏪',
+    title: 'Modalidad de Retiro en el Local (Takeout)',
+    description: 'En ventas ahora puedes elegir "Retiro en Local", sin costo de envío (RD$ 0) y con indicaciones guiadas en Google Maps para el cliente.',
+  },
+  {
     icon: '⚡',
-    title: 'Pedidos en Tiempo Real (WebSockets)',
-    description: 'Los pedidos aparecen y se actualizan al instante en cocina, repartidores y dashboard sin necesidad de refrescar la pantalla.',
+    title: 'Sincronización en Tiempo Real (WebSockets)',
+    description: 'Los pedidos y estados se actualizan automáticamente en Cocina, Delivery y Dashboard sin refrescar la pantalla.',
   },
   {
     icon: '🛵',
-    title: 'Link de Rastreo por WhatsApp',
-    description: 'Enlace público exclusivo para cada cliente (/rastreo/ORD-XX) que muestra en vivo cuándo su comida está en el horno o en camino.',
-  },
-  {
-    icon: '🔔',
-    title: 'Campana Sonora y Alertas de Despacho',
-    description: 'Alerta audible y vibración sincronizada para que el equipo no pierda ninguna comanda entrante.',
-  },
-  {
-    icon: '🛡️',
-    title: 'Seguridad y Rendimiento Mejorado',
-    description: 'Permisos granulares reforzados, carga ultrarrápida y optimización en dispositivos móviles.',
+    title: 'Link Público de Rastreo para WhatsApp',
+    description: 'Enlace exclusivo sin necesidad de login para que el cliente siga paso a paso su comida y contacte a la cocina.',
   },
 ];
 

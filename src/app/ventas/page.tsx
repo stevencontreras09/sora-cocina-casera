@@ -54,6 +54,7 @@ import {
   Check,
   XCircle,
   UtensilsCrossed,
+  Store,
 } from 'lucide-react';
 
 export default function VentasPage() {
@@ -73,6 +74,7 @@ export default function VentasPage() {
   // Estados del Formulario de Pedido
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [clientSearchQuery, setClientSearchQuery] = useState('');
+  const [deliveryType, setDeliveryType] = useState<'delivery' | 'pickup'>('delivery');
   const [selectedAddressId, setSelectedAddressId] = useState<string>('');
 
   const [items, setItems] = useState<OrderItem[]>([
@@ -301,12 +303,16 @@ export default function VentasPage() {
   // Actualizar tarifa sugerida automáticamente si cambia la dirección y no se está editando
   useEffect(() => {
     if (editingOrder) return;
+    if (deliveryType === 'pickup') {
+      setDeliveryFee(0);
+      return;
+    }
     if (feeEstimate) {
       setDeliveryFee(feeEstimate.suggestedFee);
     } else {
       setDeliveryFee(0);
     }
-  }, [feeEstimate, editingOrder]);
+  }, [feeEstimate, editingOrder, deliveryType]);
 
   const handleItemChange = (
     index: number,
@@ -431,12 +437,19 @@ export default function VentasPage() {
         : Math.max(0, (order.total || 0) - itemsSub);
     setDeliveryFee(initialFee);
 
+    const isPickupOrder =
+      order.delivery_type === 'pickup' ||
+      order.delivery_user_name === 'Retiro en Local' ||
+      (Boolean(order.address) && order.address.toLowerCase().includes('retiro en local'));
+    setDeliveryType(isPickupOrder ? 'pickup' : 'delivery');
+
     window.scrollTo({ top: 120, behavior: 'smooth' });
   };
 
   // Cancelar modo de edición y limpiar formulario
   const handleCancelEdit = () => {
     setEditingOrder(null);
+    setDeliveryType('delivery');
     setNotes('');
     setDeliveryTime('');
     setIsScheduled(false);
@@ -504,6 +517,15 @@ export default function VentasPage() {
 
     setIsSubmitting(true);
     const driverObj = deliveryDrivers.find((d) => d.id === deliveryUserId);
+    const isPickup = deliveryType === 'pickup';
+    const finalAddress = isPickup ? 'Retiro en local (Cocina Sora)' : (currentAddress?.address || 'Retiro en local');
+    const finalAddressLabel = isPickup ? 'Retiro en Local' : (currentAddress?.label || 'Dirección');
+    const finalAddressRef = isPickup ? 'Sora Cocina Casera' : (currentAddress?.reference || undefined);
+    const finalDeliveryUserName = isPickup ? 'Retiro en Local' : (driverObj?.name || 'Por asignar');
+    const finalDeliveryUserId = isPickup ? null : (deliveryUserId || null);
+    const finalDeliveryFee = isPickup ? 0 : (Number(deliveryFee) || 0);
+    const finalLat = isPickup ? SORA_KITCHEN_COORDS.lat : currentAddress?.latitude;
+    const finalLng = isPickup ? SORA_KITCHEN_COORDS.lng : currentAddress?.longitude;
 
     if (editingOrder) {
       // 1. ACTUALIZAR PEDIDO EXISTENTE
@@ -512,20 +534,21 @@ export default function VentasPage() {
         client_id: currentClient.id,
         client_name: currentClient.name,
         client_phone: currentClient.phone,
-        address_id: currentAddress?.id,
-        address_label: currentAddress?.label || 'Dirección',
-        address: currentAddress?.address || 'Retiro en local',
-        address_reference: currentAddress?.reference || undefined,
-        latitude: currentAddress?.latitude,
-        longitude: currentAddress?.longitude,
+        delivery_type: deliveryType,
+        address_id: isPickup ? undefined : currentAddress?.id,
+        address_label: finalAddressLabel,
+        address: finalAddress,
+        address_reference: finalAddressRef,
+        latitude: finalLat,
+        longitude: finalLng,
         items: items,
-        delivery_fee: Number(deliveryFee) || 0,
-        distance_km: feeEstimate?.distanceKm || undefined,
+        delivery_fee: finalDeliveryFee,
+        distance_km: isPickup ? 0 : (feeEstimate?.distanceKm || undefined),
         total: totalCalculated,
         payment_method: paymentMethod,
         payment_status: paymentStatus,
-        delivery_user_id: deliveryUserId || null,
-        delivery_user_name: driverObj?.name || 'Por asignar',
+        delivery_user_id: finalDeliveryUserId,
+        delivery_user_name: finalDeliveryUserName,
         delivery_date: deliveryDate,
         delivery_time: deliveryTime || undefined,
         production_reminder_time: productionReminderTime,
@@ -548,7 +571,7 @@ export default function VentasPage() {
               client_id: isValidUuid(currentClient.id) ? currentClient.id : undefined,
               client_name: currentClient.name,
               client_phone: currentClient.phone,
-              address: currentAddress?.address || 'Retiro en local',
+              address: finalAddress,
               items: items,
               total: totalCalculated,
               payment_method: paymentMethod,
@@ -599,20 +622,21 @@ export default function VentasPage() {
         client_id: currentClient.id,
         client_name: currentClient.name,
         client_phone: currentClient.phone,
-        address_id: currentAddress?.id,
-        address_label: currentAddress?.label || 'Dirección',
-        address: currentAddress?.address || 'Retiro en local',
-        address_reference: currentAddress?.reference || undefined,
-        latitude: currentAddress?.latitude,
-        longitude: currentAddress?.longitude,
+        delivery_type: deliveryType,
+        address_id: isPickup ? undefined : currentAddress?.id,
+        address_label: finalAddressLabel,
+        address: finalAddress,
+        address_reference: finalAddressRef,
+        latitude: finalLat,
+        longitude: finalLng,
         items: items,
-        delivery_fee: Number(deliveryFee) || 0,
-        distance_km: feeEstimate?.distanceKm || undefined,
+        delivery_fee: finalDeliveryFee,
+        distance_km: isPickup ? 0 : (feeEstimate?.distanceKm || undefined),
         total: totalCalculated,
         payment_method: paymentMethod,
         payment_status: paymentStatus,
-        delivery_user_id: deliveryUserId || null,
-        delivery_user_name: driverObj?.name || 'Por asignar',
+        delivery_user_id: finalDeliveryUserId,
+        delivery_user_name: finalDeliveryUserName,
         status: 'Pendiente',
         delivery_date: deliveryDate,
         delivery_time: deliveryTime || undefined,
@@ -632,11 +656,11 @@ export default function VentasPage() {
           order_number: orderNumber,
           client_name: currentClient.name,
           client_phone: currentClient.phone,
-          address: currentAddress?.address || 'Retiro en local',
-          address_label: currentAddress?.label || null,
-          address_reference: currentAddress?.reference || null,
-          latitude: currentAddress?.latitude || null,
-          longitude: currentAddress?.longitude || null,
+          address: finalAddress,
+          address_label: finalAddressLabel,
+          address_reference: finalAddressRef,
+          latitude: finalLat,
+          longitude: finalLng,
           items: items,
           total: totalCalculated,
           payment_method: paymentMethod,
@@ -650,8 +674,8 @@ export default function VentasPage() {
         };
 
         if (isValidUuid(currentClient.id)) supabasePayload.client_id = currentClient.id;
-        if (currentAddress && isValidUuid(currentAddress.id)) supabasePayload.address_id = currentAddress.id;
-        if (isValidUuid(deliveryUserId)) {
+        if (!isPickup && currentAddress && isValidUuid(currentAddress.id)) supabasePayload.address_id = currentAddress.id;
+        if (!isPickup && isValidUuid(deliveryUserId)) {
           supabasePayload.delivery_user_id = deliveryUserId;
           supabasePayload.delivery_user_name = driverObj?.name || null;
         }
@@ -910,13 +934,13 @@ export default function VentasPage() {
                 )}
               </div>
 
-              {/* 2. DIRECCIÓN DE ENTREGA */}
-              <div className="space-y-2">
+              {/* 2. MODALIDAD Y DESTINO DE ENTREGA */}
+              <div className="space-y-2.5">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-semibold text-text-sora/80 uppercase tracking-wider">
-                    2. Dirección de Entrega
+                    2. Modalidad de Entrega *
                   </label>
-                  {currentAddress && currentAddress.latitude && currentAddress.longitude && (
+                  {deliveryType === 'delivery' && currentAddress && currentAddress.latitude && currentAddress.longitude && (
                     <span className="text-[11px] text-emerald-700 font-semibold flex items-center">
                       <Compass className="w-3 h-3 mr-1" />
                       GPS Vinculado
@@ -924,22 +948,76 @@ export default function VentasPage() {
                   )}
                 </div>
 
-                {availableAddresses.length === 0 ? (
-                  <div className="p-3 rounded-2xl bg-bg-sora/60 border border-border-sora text-text-sora/70 text-xs">
-                    Sin direcciones guardadas. El pedido se marcará como <strong>Retiro en Local</strong>.
+                {/* Selector Visual de Modalidad: Delivery vs Retiro en Local */}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeliveryType('delivery');
+                      if (feeEstimate) setDeliveryFee(feeEstimate.suggestedFee);
+                    }}
+                    className={`p-3 rounded-2xl flex items-center justify-center space-x-2 text-xs font-bold border transition-all ${
+                      deliveryType === 'delivery'
+                        ? 'bg-primary-sora text-white border-primary-sora shadow-sm'
+                        : 'bg-white text-text-sora/70 border-border-sora hover:bg-bg-sora'
+                    }`}
+                  >
+                    <Truck className="w-4 h-4" />
+                    <span>🛵 Envío a Domicilio</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeliveryType('pickup');
+                      setDeliveryFee(0);
+                      setDeliveryUserId('');
+                    }}
+                    className={`p-3 rounded-2xl flex items-center justify-center space-x-2 text-xs font-bold border transition-all ${
+                      deliveryType === 'pickup'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                        : 'bg-white text-text-sora/70 border-border-sora hover:bg-bg-sora'
+                    }`}
+                  >
+                    <Store className="w-4 h-4" />
+                    <span>🏪 Retiro en el Local</span>
+                  </button>
+                </div>
+
+                {deliveryType === 'pickup' ? (
+                  <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 flex items-start space-x-3 animate-in fade-in">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs flex-shrink-0 mt-0.5">
+                      <Store className="w-4 h-4" />
+                    </div>
+                    <div className="text-xs">
+                      <p className="font-bold text-emerald-950">
+                        🏪 Retiro en Cocina Sora (Mostrador / Takeout)
+                      </p>
+                      <p className="text-[11px] text-emerald-800/80 mt-0.5">
+                        El cliente pasará a recoger el pedido directamente a nuestro local en Santo Domingo. <strong>Costo de envío: RD$ 0</strong> (No requiere motorista).
+                      </p>
+                    </div>
                   </div>
                 ) : (
-                  <select
-                    value={selectedAddressId}
-                    onChange={(e) => setSelectedAddressId(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
-                  >
-                    {availableAddresses.map((addr) => (
-                      <option key={addr.id} value={addr.id}>
-                        [{addr.label}] {addr.address} {addr.reference ? `(${addr.reference})` : ''}
-                      </option>
-                    ))}
-                  </select>
+                  <div>
+                    {availableAddresses.length === 0 ? (
+                      <div className="p-3 rounded-2xl bg-bg-sora/60 border border-border-sora text-text-sora/70 text-xs">
+                        El cliente no tiene direcciones registradas. Agrega una en la pestaña <strong>Clientes</strong> o selecciona <strong>Retiro en el Local</strong>.
+                      </div>
+                    ) : (
+                      <select
+                        value={selectedAddressId}
+                        onChange={(e) => setSelectedAddressId(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
+                      >
+                        {availableAddresses.map((addr) => (
+                          <option key={addr.id} value={addr.id}>
+                            [{addr.label}] {addr.address} {addr.reference ? `(${addr.reference})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -1381,23 +1459,30 @@ export default function VentasPage() {
                   <label className="block text-xs font-semibold text-text-sora/80 mb-1.5 uppercase tracking-wider">
                     Asignar Repartidor
                   </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-text-sora/40">
-                      <Truck className="w-4 h-4" />
+                  {deliveryType === 'pickup' ? (
+                    <div className="flex items-center space-x-2 px-3.5 py-2.5 rounded-xl border border-dashed border-emerald-300 bg-emerald-50/60 text-emerald-800 text-xs font-semibold">
+                      <Store className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                      <span>Retiro en Local (No requiere motorista)</span>
                     </div>
-                    <select
-                      value={deliveryUserId}
-                      onChange={(e) => setDeliveryUserId(e.target.value)}
-                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
-                    >
-                      <option value="">-- Sin asignar por ahora --</option>
-                      {deliveryDrivers.map((driver) => (
-                        <option key={driver.id} value={driver.id}>
-                          {driver.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  ) : (
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-text-sora/40">
+                        <Truck className="w-4 h-4" />
+                      </div>
+                      <select
+                        value={deliveryUserId}
+                        onChange={(e) => setDeliveryUserId(e.target.value)}
+                        className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
+                      >
+                        <option value="">-- Sin asignar por ahora --</option>
+                        {deliveryDrivers.map((driver) => (
+                          <option key={driver.id} value={driver.id}>
+                            {driver.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1554,12 +1639,17 @@ export default function VentasPage() {
                             </span>
                           )}
 
-                          {order.delivery_user_name && (
+                          {order.delivery_user_name === 'Retiro en Local' || order.delivery_type === 'pickup' ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-semibold">
+                              <Store className="w-3 h-3 mr-1" />
+                              Retiro en Local
+                            </span>
+                          ) : order.delivery_user_name ? (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-bg-sora text-text-sora/70 border border-border-sora text-[11px]">
                               <Truck className="w-3 h-3 mr-1" />
                               {order.delivery_user_name}
                             </span>
-                          )}
+                          ) : null}
                         </div>
 
                         {/* Dirección */}

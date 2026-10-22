@@ -2,12 +2,17 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation';
+import { GoogleMap, useJsApiLoader, Marker, Polyline } from '@react-google-maps/api';
 import { createClient } from '@/lib/supabase/client';
 import { Order, OrderStatus } from '@/types/database.types';
 import { isValidUuid } from '@/lib/storage';
 import { formatCurrency } from '@/lib/utils';
 import { playKitchenChime, triggerVibration } from '@/lib/audioAlerts';
 import { SORA_CONFIG } from '@/lib/constants';
+import {
+  SORA_KITCHEN_COORDS,
+  calculateHaversineDistanceKm,
+} from '@/lib/routeOptimizer';
 import {
   ChefHat,
   Flame,
@@ -24,18 +29,54 @@ import {
   RefreshCw,
   Copy,
   Check,
+  Store,
+  Navigation,
+  Compass,
+  ExternalLink,
 } from 'lucide-react';
+
+const GOOGLE_LIBRARIES: ('places')[] = ['places'];
+
+const mapContainerStyle = {
+  width: '100%',
+  height: '260px',
+  borderRadius: '1rem',
+};
+
+const mapOptions: google.maps.MapOptions = {
+  disableDefaultUI: false,
+  zoomControl: true,
+  streetViewControl: false,
+  mapTypeControl: false,
+  fullscreenControl: true,
+};
 
 export default function PublicOrderTrackingPage() {
   const params = useParams();
   const rawId = (params?.id as string) || '';
   const supabase = useMemo(() => createClient(), []);
 
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+  const { isLoaded: isMapLoaded } = useJsApiLoader({
+    id: 'google-map-tracking-script',
+    googleMapsApiKey: apiKey,
+    libraries: GOOGLE_LIBRARIES,
+  });
+
   const [order, setOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+
+  // Coordenadas en tiempo real del repartidor
+  const [driverCoords, setDriverCoords] = useState<{
+    lat: number;
+    lng: number;
+    driverName?: string;
+    speed?: number | null;
+    timestamp?: number;
+  } | null>(null);
 
   // 1. Cargar pedido público desde Supabase por ID o por número de orden
   const loadOrder = async () => {
@@ -72,12 +113,10 @@ export default function PublicOrderTrackingPage() {
           if (byOrderNum && byOrderNum.length > 0) {
             foundOrder = byOrderNum[0] as Order;
           }
-        } catch (_) {
-          // Si la columna order_number aún no existe en Supabase, ignorar y pasar a los siguientes intentos
-        }
+        } catch (_) {}
       }
 
-      // Intento C: Buscar por coincidencia parcial o por sufijo numérico (ej: 6129)
+      // Intento C: Buscar por coincidencia numérica
       if (!foundOrder) {
         try {
           const numericPart = decodedId.replace(/[^0-9]/g, '');
@@ -96,16 +135,18 @@ export default function PublicOrderTrackingPage() {
         } catch (_) {}
       }
 
-      // Intento D: Fallback de contingencia con almacenamiento local si se prueba en el mismo navegador
+      // Intento D: Respaldo local de contingencia
       if (!foundOrder) {
         try {
-          const localOrders = typeof window !== 'undefined'
-            ? JSON.parse(localStorage.getItem('sora_orders') || '[]')
-            : [];
-          const matched = localOrders.find((o: any) =>
-            o.id === decodedId ||
-            (o.order_number && o.order_number.toLowerCase() === decodedId.toLowerCase()) ||
-            (o.order_number && decodedId.includes(o.order_number))
+          const localOrders =
+            typeof window !== 'undefined'
+              ? JSON.parse(localStorage.getItem('sora_orders') || '[]')
+              : [];
+          const matched = localOrders.find(
+            (o: any) =>
+              o.id === decodedId ||
+              (o.order_number && o.order_number.toLowerCase() === decodedId.toLowerCase()) ||
+              (o.order_number && decodedId.includes(o.order_number))
           );
           if (matched) {
             foundOrder = matched as Order;
@@ -165,7 +206,6 @@ export default function PublicOrderTrackingPage() {
             setOrder(updated);
             setLastUpdated(new Date());
 
-            // Si cambió de estado, avisar sonoramente al cliente en su celular
             if (previousStatus !== updated.status) {
               playKitchenChime();
               triggerVibration([200, 100, 250]);
@@ -180,6 +220,35 @@ export default function PublicOrderTrackingPage() {
     };
   }, [order?.id, supabase, order?.status]);
 
+  // 3. Suscripción al Canal GPS en Tiempo Real del Repartidor
+  useEffect(() => {
+    if (!order) return;
+
+    // Intentar leer último GPS si está en almacenamiento local
+    try {
+      const cached = localStorage.getItem('sora_driver_live_coords');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - (parsed.timestamp || 0) < 1000 * 60 * 45) {
+          setDriverCoords(parsed);
+        }
+      }
+    } catch (_) {}
+
+    const trackingChannel = supabase
+      .channel('sora-live-tracking')
+      .on('broadcast', { event: 'driver-location' }, (payload: any) => {
+        if (payload?.payload) {
+          setDriverCoords(payload.payload);
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(trackingChannel);
+    };
+  }, [order, supabase]);
+
   // Normalizar estado
   const currentStep = useMemo(() => {
     if (!order) return 1;
@@ -190,6 +259,46 @@ export default function PublicOrderTrackingPage() {
     if (st === 'en preparacion' || st === 'en horno') return 2;
     return 1; // 'pendiente'
   }, [order]);
+
+  // Identificar si la orden es para retirar en el local
+  const isPickup = useMemo(() => {
+    if (!order) return false;
+    return (
+      order.delivery_type === 'pickup' ||
+      order.delivery_user_name === 'Retiro en Local' ||
+      (Boolean(order.address) && order.address.toLowerCase().includes('retiro en local'))
+    );
+  }, [order]);
+
+  // Coordenadas del cliente destino
+  const clientLocation = useMemo(() => {
+    if (order?.latitude && order?.longitude) {
+      return { lat: order.latitude, lng: order.longitude };
+    }
+    return null;
+  }, [order]);
+
+  // Distancia y tiempo restante estimado hacia el cliente
+  const liveTrackingMetrics = useMemo(() => {
+    const origin = driverCoords ? { lat: driverCoords.lat, lng: driverCoords.lng } : SORA_KITCHEN_COORDS;
+    const destination = clientLocation || { lat: 18.4500, lng: -69.9500 };
+
+    const distanceKm = calculateHaversineDistanceKm(
+      origin.lat,
+      origin.lng,
+      destination.lat,
+      destination.lng
+    );
+
+    // Estimación en moto en Santo Domingo (~22 km/h con semáforos)
+    const minutesLeft = Math.max(2, Math.round((distanceKm / 22) * 60));
+
+    return {
+      distanceKm: Math.max(0.1, Math.round(distanceKm * 10) / 10),
+      minutesLeft,
+      isLiveGps: Boolean(driverCoords),
+    };
+  }, [driverCoords, clientLocation]);
 
   const handleCopyLink = () => {
     if (typeof window !== 'undefined') {
@@ -304,9 +413,18 @@ export default function PublicOrderTrackingPage() {
               {/* Header de la orden */}
               <div className="flex items-start justify-between pb-4 border-b border-border-sora">
                 <div>
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-primary-sora bg-primary-sora/10 px-2.5 py-0.5 rounded-full border border-primary-sora/20">
-                    Orden #{order.order_number}
-                  </span>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-primary-sora bg-primary-sora/10 px-2.5 py-0.5 rounded-full border border-primary-sora/20">
+                      Orden #{order.order_number}
+                    </span>
+                    {isPickup && (
+                      <span className="text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 px-2.5 py-0.5 rounded-full inline-flex items-center">
+                        <Store className="w-3 h-3 mr-1" />
+                        Retiro en Local
+                      </span>
+                    )}
+                  </div>
+
                   <h2 className="font-serif font-bold text-xl text-text-sora mt-1.5">
                     ¡Hola, {order.client_name?.split(' ')[0]}!
                   </h2>
@@ -322,7 +440,7 @@ export default function PublicOrderTrackingPage() {
                     </span>
                     {order.is_scheduled && order.delivery_time && (
                       <span className="ml-2 font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                        Entrega programada: {order.delivery_time}
+                        {isPickup ? 'Retiro a las:' : 'Entrega programada:'} {order.delivery_time}
                       </span>
                     )}
                   </p>
@@ -399,25 +517,43 @@ export default function PublicOrderTrackingPage() {
                       </div>
                     </div>
 
-                    {/* Paso 3: En Camino */}
+                    {/* Paso 3: En Camino vs Listo para Retirar */}
                     <div className="relative">
                       <div
                         className={`absolute -left-7 top-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
                           currentStep > 3
                             ? 'bg-emerald-600 text-white shadow-sm ring-4 ring-emerald-50'
                             : currentStep === 3
-                            ? 'bg-blue-600 text-white shadow-sm ring-4 ring-blue-100 animate-pulse'
+                            ? isPickup
+                              ? 'bg-emerald-600 text-white shadow-sm ring-4 ring-emerald-100 animate-pulse'
+                              : 'bg-blue-600 text-white shadow-sm ring-4 ring-blue-100 animate-pulse'
                             : 'bg-gray-200 text-gray-500'
                         }`}
                       >
-                        {currentStep > 3 ? '✓' : <Truck className="w-3.5 h-3.5" />}
+                        {currentStep > 3 ? (
+                          '✓'
+                        ) : isPickup ? (
+                          <Store className="w-3.5 h-3.5" />
+                        ) : (
+                          <Truck className="w-3.5 h-3.5" />
+                        )}
                       </div>
                       <div>
-                        <h4 className={`font-bold text-xs sm:text-sm ${currentStep === 3 ? 'text-blue-700' : 'text-text-sora'}`}>
-                          3. En Camino con Repartidor
+                        <h4
+                          className={`font-bold text-xs sm:text-sm ${
+                            currentStep === 3
+                              ? isPickup
+                                ? 'text-emerald-700'
+                                : 'text-blue-700'
+                              : 'text-text-sora'
+                          }`}
+                        >
+                          {isPickup ? '3. ¡Listo para Retiro en Cocina!' : '3. En Camino con Repartidor'}
                         </h4>
                         <p className="text-[11px] text-text-sora/60 mt-0.5">
-                          {order.delivery_user_name
+                          {isPickup
+                            ? 'Tu pedido ya está empacado y calentito esperando que pases por él a Cocina Sora.'
+                            : order.delivery_user_name
                             ? `Tu repartidor ${order.delivery_user_name} va en ruta hacia tu dirección.`
                             : 'El motorista va en camino con tu comida empacada térmicamente.'}
                         </p>
@@ -448,6 +584,177 @@ export default function PublicOrderTrackingPage() {
                 </div>
               )}
             </div>
+
+            {/* SEGUIMIENTO EN VIVO DEL REPARTIDOR (SOLO SI ES DELIVERY Y ESTÁ EN CAMINO) */}
+            {!isPickup && currentStep === 3 && (
+              <div className="bg-gradient-to-br from-blue-500/10 via-white to-primary-sora/10 rounded-3xl p-5 sm:p-6 border border-blue-200 shadow-md space-y-4 animate-in fade-in">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2.5">
+                    <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/25">
+                      <Navigation className="w-5 h-5 animate-pulse" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full inline-flex items-center">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-ping mr-1.5" />
+                        Repartidor en Ruta
+                      </span>
+                      <h3 className="font-serif font-bold text-base text-text-sora mt-0.5">
+                        {order.delivery_user_name || driverCoords?.driverName || 'Motorista Sora'}
+                      </h3>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <span className="text-[10px] text-text-sora/50 font-semibold block uppercase">
+                      Llegada estimada
+                    </span>
+                    <span className="font-serif font-bold text-lg text-blue-700">
+                      ~{liveTrackingMetrics.minutesLeft} min
+                    </span>
+                  </div>
+                </div>
+
+                {/* Barra de progreso de acercamiento */}
+                <div className="p-3.5 rounded-2xl bg-white/90 border border-blue-100 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-semibold">
+                    <span className="text-text-sora/70 flex items-center">
+                      <Compass className="w-3.5 h-3.5 mr-1 text-blue-600" />
+                      Distancia restante:
+                    </span>
+                    <span className="text-blue-800 font-bold font-mono">
+                      ~{liveTrackingMetrics.distanceKm} km
+                    </span>
+                  </div>
+
+                  {/* Barra animada de trayectoria */}
+                  <div className="relative pt-2 pb-1">
+                    <div className="w-full h-2 rounded-full bg-blue-100 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-blue-500 to-primary-sora transition-all duration-1000 animate-pulse"
+                        style={{
+                          width: `${Math.min(95, Math.max(15, 100 - liveTrackingMetrics.distanceKm * 10))}%`,
+                        }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-text-sora/50 font-semibold mt-1.5">
+                      <span>🍳 Cocina Sora</span>
+                      <span className="text-blue-600 font-bold">🛵 En camino</span>
+                      <span>🏠 Tu Dirección</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* MAPA INTERACTIVO DE GOOGLE MAPS */}
+                {isMapLoaded && apiKey ? (
+                  <div className="rounded-2xl overflow-hidden border border-border-sora shadow-xs">
+                    <GoogleMap
+                      mapContainerStyle={mapContainerStyle}
+                      center={
+                        driverCoords
+                          ? { lat: driverCoords.lat, lng: driverCoords.lng }
+                          : clientLocation || SORA_KITCHEN_COORDS
+                      }
+                      zoom={14}
+                      options={mapOptions}
+                    >
+                      {/* Marcador del Repartidor */}
+                      {driverCoords && (
+                        <Marker
+                          position={{ lat: driverCoords.lat, lng: driverCoords.lng }}
+                          title={`Repartidor: ${order.delivery_user_name || 'Sora'}`}
+                          label={{
+                            text: '🛵',
+                            fontSize: '20px',
+                          }}
+                        />
+                      )}
+
+                      {/* Marcador de la Casa del Cliente */}
+                      {clientLocation && (
+                        <Marker
+                          position={clientLocation}
+                          title={`Destino: ${order.client_name}`}
+                          label={{
+                            text: '🏠',
+                            fontSize: '20px',
+                          }}
+                        />
+                      )}
+
+                      {/* Marcador de Cocina Sora */}
+                      <Marker
+                        position={SORA_KITCHEN_COORDS}
+                        title="Cocina Sora"
+                        label={{
+                          text: '🍳',
+                          fontSize: '18px',
+                        }}
+                      />
+
+                      {/* Línea conectora entre puntos */}
+                      {clientLocation && (
+                        <Polyline
+                          path={[
+                            driverCoords
+                              ? { lat: driverCoords.lat, lng: driverCoords.lng }
+                              : SORA_KITCHEN_COORDS,
+                            clientLocation,
+                          ]}
+                          options={{
+                            strokeColor: '#3B82F6',
+                            strokeOpacity: 0.8,
+                            strokeWeight: 4,
+                          }}
+                        />
+                      )}
+                    </GoogleMap>
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-2xl bg-white border border-border-sora text-center text-xs text-text-sora/70 flex items-center justify-center space-x-2">
+                    <Truck className="w-4 h-4 text-blue-600 animate-bounce" />
+                    <span>El repartidor va en camino a tu sector. ¡Mantén tu teléfono atento!</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* SECCIÓN ESPECIAL PARA RETIRO EN LOCAL */}
+            {isPickup && (
+              <div className="bg-emerald-50 rounded-3xl p-5 border border-emerald-200 shadow-sm space-y-3">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-9 h-9 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                    <Store className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-bold text-sm text-emerald-950">
+                      Ubicación para Retirar tu Pedido
+                    </h3>
+                    <p className="text-[11px] text-emerald-800">
+                      Sora Cocina Casera • Santo Domingo
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-white border border-emerald-200/60 text-xs text-text-sora space-y-1">
+                  <p className="font-semibold text-text-sora">
+                    {SORA_KITCHEN_COORDS.address}
+                  </p>
+                  <p className="text-[11px] text-text-sora/60">
+                    Puedes pasar directamente al mostrador de entrega e indicar el <strong>#{order.order_number}</strong>.
+                  </p>
+                </div>
+
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${SORA_KITCHEN_COORDS.lat},${SORA_KITCHEN_COORDS.lng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center justify-center space-x-2 shadow-xs transition-all"
+                >
+                  <Navigation className="w-4 h-4" />
+                  <span>¿Cómo llegar? Abrir ruta en Google Maps</span>
+                </a>
+              </div>
+            )}
 
             {/* DETALLES DE LOS PLATOS ORDENADOS */}
             <div className="bg-white rounded-3xl p-5 sm:p-6 border border-border-sora shadow-sm space-y-4">
@@ -482,10 +789,16 @@ export default function PublicOrderTrackingPage() {
 
               {/* Resumen financiero */}
               <div className="pt-2 border-t border-border-sora space-y-1.5 text-xs">
-                {order.delivery_fee !== undefined && order.delivery_fee > 0 && (
+                {!isPickup && order.delivery_fee !== undefined && order.delivery_fee > 0 && (
                   <div className="flex justify-between text-text-sora/70">
                     <span>Costo de Envío (Delivery)</span>
                     <span className="font-semibold">{formatCurrency(order.delivery_fee)}</span>
+                  </div>
+                )}
+                {isPickup && (
+                  <div className="flex justify-between text-emerald-700 font-semibold text-[11px]">
+                    <span>Modalidad de Entrega</span>
+                    <span>Retiro en Local (Gratis - RD$ 0)</span>
                   </div>
                 )}
                 <div className="flex justify-between text-sm font-bold text-text-sora pt-1 border-t border-dashed border-border-sora">
@@ -497,7 +810,7 @@ export default function PublicOrderTrackingPage() {
                 <div className="flex justify-between text-[11px] text-text-sora/60 pt-0.5">
                   <span>Método de pago:</span>
                   <span className="font-semibold capitalize text-text-sora">
-                    {order.payment_method === 'transferencia' ? 'Transferencia Bancaria' : 'Efectivo contra entrega'}
+                    {order.payment_method === 'transferencia' ? 'Transferencia Bancaria' : 'Efectivo'}
                   </span>
                 </div>
                 <div className="flex justify-between text-[11px] text-text-sora/60">
@@ -507,22 +820,22 @@ export default function PublicOrderTrackingPage() {
                       order.payment_status === 'pagado' ? 'text-emerald-700' : 'text-amber-700'
                     }`}
                   >
-                    {order.payment_status === 'pagado' ? '● Pagado' : '● Cobrar al entregar'}
+                    {order.payment_status === 'pagado' ? '● Pagado' : isPickup ? '● Pagar al retirar' : '● Cobrar al entregar'}
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* DIRECCIÓN DE ENTREGA */}
+            {/* DIRECCIÓN DE ENTREGA O RETIRO */}
             <div className="bg-white rounded-3xl p-5 border border-border-sora shadow-sm space-y-2">
               <div className="flex items-center space-x-2 font-bold text-xs text-text-sora/80 uppercase tracking-wider">
                 <MapPin className="w-4 h-4 text-primary-sora" />
-                <span>Destino de Entrega</span>
+                <span>{isPickup ? 'Lugar de Retiro' : 'Destino de Entrega'}</span>
               </div>
               <p className="text-xs font-semibold text-text-sora">
-                {order.address || 'Dirección registrada'}
+                {isPickup ? 'Sora Cocina Casera (Santo Domingo)' : (order.address || 'Dirección registrada')}
               </p>
-              {order.address_reference && (
+              {order.address_reference && !isPickup && (
                 <p className="text-[11px] text-text-sora/60 bg-bg-sora p-2 rounded-xl border border-border-sora">
                   <strong>Referencia:</strong> {order.address_reference}
                 </p>
@@ -538,7 +851,7 @@ export default function PublicOrderTrackingPage() {
                 className="w-full py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center justify-center space-x-2 shadow-lg shadow-emerald-600/20 active:scale-98 transition-all"
               >
                 <MessageCircle className="w-4 h-4" />
-                <span>¿Dudas con tu entrega? Escríbenos al {SORA_CONFIG.phoneDisplay}</span>
+                <span>¿Dudas con tu pedido? Escríbenos al {SORA_CONFIG.phoneDisplay}</span>
               </a>
 
               <button
@@ -568,7 +881,7 @@ export default function PublicOrderTrackingPage() {
           Sora Cocina Casera
         </p>
         <p className="text-[10px] text-text-sora/50 mt-0.5">
-          {SORA_CONFIG.city} • WhatsApp: {SORA_CONFIG.phoneDisplay} • v1.2.2
+          {SORA_CONFIG.city} • WhatsApp: {SORA_CONFIG.phoneDisplay} • v1.2.3
         </p>
       </footer>
     </div>

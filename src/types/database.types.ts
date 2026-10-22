@@ -94,6 +94,7 @@ export interface Order {
   client_id: string;
   client_name: string;
   client_phone: string;
+  delivery_type?: 'delivery' | 'pickup';
   address_id?: string;
   address_label?: string;
   address: string;
@@ -233,4 +234,17 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, AppPermission[]> = {
   coadmin: ['gastos', 'delivery', 'ventas'],
   delivery: ['delivery'],
 };
+
+export interface DriverLocationPayload {
+  orderId?: string;
+  orderNumber?: string;
+  driverId?: string;
+  driverName?: string;
+  lat: number;
+  lng: number;
+  heading?: number | null;
+  speed?: number | null;
+  timestamp: number;
+}
+
 

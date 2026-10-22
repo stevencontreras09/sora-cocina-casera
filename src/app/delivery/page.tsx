@@ -41,6 +41,82 @@ export default function DeliveryMobilePage() {
   const [isDelivering, setIsDelivering] = useState(false);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
+  // Transmisión de ubicación GPS en tiempo real para los clientes
+  const [isTransmittingGps, setIsTransmittingGps] = useState(false);
+  const [gpsWatchId, setGpsWatchId] = useState<number | null>(null);
+  const [currentCoords, setCurrentCoords] = useState<{ lat: number; lng: number } | null>(null);
+
+  const startGpsTransmission = () => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      alert('Tu navegador no soporta geolocalización GPS.');
+      return;
+    }
+
+    setIsTransmittingGps(true);
+    const id = navigator.geolocation.watchPosition(
+      (pos) => {
+        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setCurrentCoords(coords);
+
+        // Emitir coordenadas vía WebSockets Broadcast a los clientes que están rastreando
+        try {
+          const liveChannel = supabase.channel('sora-live-tracking');
+          liveChannel.send({
+            type: 'broadcast',
+            event: 'driver-location',
+            payload: {
+              driverId: user?.id,
+              driverName: profile?.full_name || 'Repartidor Sora',
+              lat: coords.lat,
+              lng: coords.lng,
+              heading: pos.coords.heading,
+              speed: pos.coords.speed,
+              timestamp: Date.now(),
+            },
+          });
+
+          localStorage.setItem(
+            'sora_driver_live_coords',
+            JSON.stringify({
+              ...coords,
+              timestamp: Date.now(),
+              driverName: profile?.full_name || 'Repartidor Sora',
+            })
+          );
+        } catch (_) {}
+      },
+      (err) => {
+        console.warn('Aviso de GPS:', err.message);
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 4000,
+        timeout: 12000,
+      }
+    );
+    setGpsWatchId(id);
+    setSuccessBanner('📡 GPS en Vivo activado. Tus clientes pueden ver tu trayecto.');
+    setTimeout(() => setSuccessBanner(null), 3500);
+  };
+
+  const stopGpsTransmission = () => {
+    if (gpsWatchId !== null && typeof window !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.clearWatch(gpsWatchId);
+      setGpsWatchId(null);
+    }
+    setIsTransmittingGps(false);
+    setSuccessBanner('GPS en Vivo pausado.');
+    setTimeout(() => setSuccessBanner(null), 2500);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (gpsWatchId !== null && typeof window !== 'undefined' && navigator.geolocation) {
+        navigator.geolocation.clearWatch(gpsWatchId);
+      }
+    };
+  }, [gpsWatchId]);
+
   // 1. Cargar pedidos asignados desde almacenamiento local y Supabase
   const loadAssignedOrders = async () => {
     setIsLoading(true);
@@ -198,7 +274,11 @@ export default function DeliveryMobilePage() {
       console.warn('Actualización local de estado');
     }
 
-    setSuccessBanner('¡Ruta iniciada! El cliente sabe que vas en camino.');
+    if (!isTransmittingGps) {
+      startGpsTransmission();
+    }
+
+    setSuccessBanner('¡Ruta iniciada! El cliente sabe que vas en camino y su mapa está sincronizado.');
     setTimeout(() => setSuccessBanner(null), 3000);
   };
 
@@ -257,15 +337,48 @@ export default function DeliveryMobilePage() {
               </div>
             </div>
 
-            <button
-              onClick={loadAssignedOrders}
-              disabled={isLoading}
-              aria-label="Actualizar pedidos"
-              className="p-3 rounded-2xl bg-bg-sora hover:bg-border-sora/50 border border-border-sora text-text-sora transition-all active:scale-95 disabled:opacity-50"
-              title="Actualizar pedidos asignados"
-            >
-              <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin text-primary-sora' : ''}`} />
-            </button>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={isTransmittingGps ? stopGpsTransmission : startGpsTransmission}
+                className={`inline-flex items-center space-x-1.5 px-3 py-2 rounded-2xl text-xs font-bold transition-all shadow-xs ${
+                  isTransmittingGps
+                    ? 'bg-emerald-600 text-white shadow-emerald-600/25 ring-2 ring-emerald-300'
+                    : 'bg-bg-sora hover:bg-border-sora/60 border border-border-sora text-text-sora/80'
+                }`}
+                title={
+                  isTransmittingGps
+                    ? 'GPS transmitiendo en tiempo real a los clientes (clic para pausar)'
+                    : 'Activar GPS en tiempo real para que los clientes vean tu trayecto en el mapa'
+                }
+              >
+                <span className="relative flex h-2 w-2">
+                  <span
+                    className={`absolute inline-flex h-full w-full rounded-full ${
+                      isTransmittingGps ? 'bg-white animate-ping opacity-75' : 'bg-gray-400'
+                    }`}
+                  />
+                  <span
+                    className={`relative inline-flex rounded-full h-2 w-2 ${
+                      isTransmittingGps ? 'bg-white' : 'bg-gray-500'
+                    }`}
+                  />
+                </span>
+                <span className="hidden sm:inline">
+                  {isTransmittingGps ? 'GPS en Vivo' : 'Activar GPS'}
+                </span>
+                <span className="sm:hidden">{isTransmittingGps ? 'GPS ●' : 'GPS'}</span>
+              </button>
+
+              <button
+                onClick={loadAssignedOrders}
+                disabled={isLoading}
+                aria-label="Actualizar pedidos"
+                className="p-2.5 rounded-2xl bg-bg-sora hover:bg-border-sora/50 border border-border-sora text-text-sora transition-all active:scale-95 disabled:opacity-50"
+                title="Actualizar pedidos asignados"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-primary-sora' : ''}`} />
+              </button>
+            </div>
           </div>
 
           {/* Pestañas ergonómicas */}

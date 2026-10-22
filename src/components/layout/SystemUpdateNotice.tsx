@@ -12,6 +12,8 @@ import {
   Clock,
   ArrowUpCircle,
   Lightbulb,
+  Store,
+  Navigation,
 } from 'lucide-react';
 import {
   CURRENT_APP_VERSION,
@@ -217,7 +219,7 @@ export function SystemUpdateNotice() {
                   Actualización v{serverVersion || CURRENT_APP_VERSION}
                 </span>
                 <span className="font-medium">
-                  Pedidos en tiempo real con WebSockets y link público de rastreo en vivo para clientes por WhatsApp.
+                  Seguimiento GPS del repartidor en vivo para clientes, opción de Retiro en Local en ventas y sincronización en tiempo real.
                 </span>
               </div>
             </div>
@@ -314,6 +316,26 @@ export function SystemUpdateNotice() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div className="p-3.5 rounded-2xl bg-bg-sora/70 border border-border-sora space-y-1.5">
                     <div className="flex items-center space-x-2 text-text-sora font-bold text-xs">
+                      <Navigation className="w-4 h-4 text-blue-600" />
+                      <span>Seguimiento GPS del Repartidor</span>
+                    </div>
+                    <p className="text-[11px] text-text-sora/70 leading-relaxed">
+                      El cliente ve en tiempo real en el mapa interactivo el avance del motorista, los kilómetros restantes y el tiempo estimado de llegada para evitar esperas y ansiedad.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-bg-sora/70 border border-border-sora space-y-1.5">
+                    <div className="flex items-center space-x-2 text-text-sora font-bold text-xs">
+                      <Store className="w-4 h-4 text-emerald-600" />
+                      <span>Retiro en Local (Takeout)</span>
+                    </div>
+                    <p className="text-[11px] text-text-sora/70 leading-relaxed">
+                      Al registrar una venta, ahora puedes seleccionar "Retiro en Local", sin costo de envío (RD$ 0) y con indicaciones de Google Maps y Waze para el cliente.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-bg-sora/70 border border-border-sora space-y-1.5">
+                    <div className="flex items-center space-x-2 text-text-sora font-bold text-xs">
                       <Sparkles className="w-4 h-4 text-primary-sora" />
                       <span>Sincronización en Tiempo Real</span>
                     </div>
@@ -324,31 +346,11 @@ export function SystemUpdateNotice() {
 
                   <div className="p-3.5 rounded-2xl bg-bg-sora/70 border border-border-sora space-y-1.5">
                     <div className="flex items-center space-x-2 text-text-sora font-bold text-xs">
-                      <Truck className="w-4 h-4 text-emerald-600" />
-                      <span>Link de Rastreo para Clientes</span>
+                      <Truck className="w-4 h-4 text-amber-600" />
+                      <span>Link de Rastreo por WhatsApp</span>
                     </div>
                     <p className="text-[11px] text-text-sora/70 leading-relaxed">
-                      Enlace público interactivo (/rastreo/ORD-XX) enviado por WhatsApp. El cliente ve en vivo cuándo su lasaña está en el horno o en camino con el motorista.
-                    </p>
-                  </div>
-
-                  <div className="p-3.5 rounded-2xl bg-bg-sora/70 border border-border-sora space-y-1.5">
-                    <div className="flex items-center space-x-2 text-text-sora font-bold text-xs">
-                      <Volume2 className="w-4 h-4 text-amber-600" />
-                      <span>Campana de Cocina y Vibración</span>
-                    </div>
-                    <p className="text-[11px] text-text-sora/70 leading-relaxed">
-                      Timbre de servicio sintetizado con Web Audio API que suena automáticamente al registrarse una nueva comanda o asignarse un despacho.
-                    </p>
-                  </div>
-
-                  <div className="p-3.5 rounded-2xl bg-bg-sora/70 border border-border-sora space-y-1.5">
-                    <div className="flex items-center space-x-2 text-text-sora font-bold text-xs">
-                      <ShieldCheck className="w-4 h-4 text-blue-600" />
-                      <span>Seguridad y Permisos Granulares</span>
-                    </div>
-                    <p className="text-[11px] text-text-sora/70 leading-relaxed">
-                      Control estricto de roles (Admin, Coadmin, Delivery), bloqueo instantáneo de cuentas inactivas y guardias de ruta en servidor y cliente.
+                      Enlace público interactivo (/rastreo/ORD-XX) enviado por WhatsApp. El cliente no necesita iniciar sesión y contacta a la cocina con un solo toque.
                     </p>
                   </div>
                 </div>
