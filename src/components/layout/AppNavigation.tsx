@@ -9,6 +9,8 @@ import { SystemUpdateNotice } from './SystemUpdateNotice';
 import { KitchenAlertBanner } from '@/components/alerts/KitchenAlertBanner';
 import { AutoSaveStatusIndicator } from './AutoSaveStatusIndicator';
 import { InstallAppModal } from './InstallAppModal';
+import { ThemeToggle } from './ThemeToggle';
+import { ChangelogModal } from './ChangelogModal';
 import { CURRENT_APP_VERSION } from '@/lib/version';
 import {
   LayoutDashboard,
@@ -28,6 +30,7 @@ import {
   Download,
   Boxes,
   UtensilsCrossed,
+  Sparkles,
 } from 'lucide-react';
 
 interface NavItem {
@@ -121,6 +124,7 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [installModalOpen, setInstallModalOpen] = useState(false);
+  const [changelogModalOpen, setChangelogModalOpen] = useState(false);
 
   // Filtrar elementos de navegación basados en los permisos asignados al usuario
   const visibleItems = NAVIGATION_ITEMS.filter((item) =>
@@ -180,6 +184,7 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="flex items-center space-x-2">
+          <ThemeToggle variant="dropdown" />
           <AutoSaveStatusIndicator />
           {currentRoleInfo && (
             <span
@@ -267,14 +272,32 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Botón cerrar sesión en móvil / tablet */}
-          <div className="pt-6 border-t border-border-sora max-w-lg mx-auto w-full text-center">
+          <div className="pt-6 border-t border-border-sora max-w-lg mx-auto w-full text-center space-y-2.5">
+            {/* Selector de Tema Móvil */}
+            <div className="flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-white/70 dark:bg-card-sora/80 border border-border-sora shadow-2xs">
+              <span className="text-xs font-semibold text-text-sora">Apariencia / Tema</span>
+              <ThemeToggle variant="segmented" />
+            </div>
+
+            {/* Botón Novedades y Versiones */}
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setChangelogModalOpen(true);
+              }}
+              className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 dark:text-amber-300 font-bold text-xs border border-amber-500/25 active:scale-98 transition-all"
+            >
+              <Sparkles className="w-4 h-4 text-amber-500" />
+              <span>Novedades v{CURRENT_APP_VERSION} (Historial)</span>
+            </button>
+
             {/* Botón de Instalar App en Celular */}
             <button
               onClick={() => {
                 setMobileMenuOpen(false);
                 setInstallModalOpen(true);
               }}
-              className="w-full mb-3 flex items-center justify-center space-x-2 px-4 py-3 rounded-2xl bg-primary-sora/15 text-primary-sora hover:bg-primary-sora hover:text-white font-bold text-xs border border-primary-sora/30 active:scale-98 transition-all"
+              className="w-full mb-1 flex items-center justify-center space-x-2 px-4 py-3 rounded-2xl bg-primary-sora/15 text-primary-sora hover:bg-primary-sora hover:text-white font-bold text-xs border border-primary-sora/30 active:scale-98 transition-all"
             >
               <Download className="w-4 h-4 animate-bounce" />
               <span>📲 Instalar Sora en tu Teléfono</span>
@@ -288,9 +311,15 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
               <LogOut className="w-4 h-4" />
               <span>{isSigningOut ? 'Cerrando sesión...' : 'Cerrar sesión'}</span>
             </button>
-            <span className="text-[10px] text-text-sora/40 font-mono mt-2.5 block">
-              Sora Cocina Casera • v{CURRENT_APP_VERSION}
-            </span>
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setChangelogModalOpen(true);
+              }}
+              className="text-[10px] text-text-sora/50 hover:text-primary-sora font-mono mt-2 block mx-auto transition-colors cursor-pointer"
+            >
+              Sora Cocina Casera • v{CURRENT_APP_VERSION} ↗
+            </button>
           </div>
         </div>
       )}
@@ -369,8 +398,24 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
 
-        {/* Footer Sidebar: Botón Instalar y Cerrar Sesión */}
-        <div className="pt-4 border-t border-border-sora text-center space-y-2">
+        {/* Footer Sidebar: Selector de Tema, Novedades, Botón Instalar y Cerrar Sesión */}
+        <div className="pt-3 border-t border-border-sora text-center space-y-2">
+          {/* Selector de tema */}
+          <div className="flex items-center justify-between px-1.5 py-1">
+            <span className="text-[11px] font-semibold text-text-sora/60">Tema</span>
+            <ThemeToggle variant="segmented" />
+          </div>
+
+          {/* Novedades v1.3.0 */}
+          <button
+            onClick={() => setChangelogModalOpen(true)}
+            className="w-full flex items-center justify-center space-x-2 px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 dark:text-amber-300 transition-all text-xs font-bold border border-amber-500/25 shadow-2xs group"
+            title="Ver qué hay de nuevo en Sora v1.3.0"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 group-hover:rotate-12 transition-transform" />
+            <span>Novedades v{CURRENT_APP_VERSION}</span>
+          </button>
+
           <button
             onClick={() => setInstallModalOpen(true)}
             className="w-full flex items-center justify-center space-x-2 px-3 py-2 rounded-xl bg-primary-sora/10 hover:bg-primary-sora hover:text-white text-primary-sora transition-all text-xs font-bold border border-primary-sora/25 shadow-2xs group"
@@ -383,15 +428,19 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
           <button
             onClick={handleSignOut}
             disabled={isSigningOut}
-            className="w-full flex items-center justify-center space-x-2 px-3 py-2.5 rounded-xl text-primary-sora hover:bg-primary-sora hover:text-white transition-all text-sm font-medium border border-primary-sora/20 disabled:opacity-50"
+            className="w-full flex items-center justify-center space-x-2 px-3 py-2 rounded-xl text-primary-sora hover:bg-primary-sora hover:text-white transition-all text-xs font-medium border border-primary-sora/20 disabled:opacity-50"
             title="Cerrar sesión en este dispositivo"
           >
-            <LogOut className="w-4 h-4" />
+            <LogOut className="w-3.5 h-3.5" />
             <span>{isSigningOut ? 'Cerrando sesión...' : 'Cerrar sesión'}</span>
           </button>
-          <span className="text-[10px] text-text-sora/40 font-mono mt-1 block">
-            Sora Cocina Casera • v{CURRENT_APP_VERSION}
-          </span>
+          <button
+            onClick={() => setChangelogModalOpen(true)}
+            className="text-[10px] text-text-sora/40 hover:text-primary-sora font-mono mt-1 block mx-auto transition-colors cursor-pointer"
+            title="Ver historial de cambios"
+          >
+            Sora Cocina Casera • v{CURRENT_APP_VERSION} ↗
+          </button>
         </div>
       </aside>
 
@@ -399,6 +448,12 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
       <InstallAppModal
         isOpen={installModalOpen}
         onClose={() => setInstallModalOpen(false)}
+      />
+
+      {/* MODAL DE HISTORIAL DE ACTUALIZACIONES (CHANGELOG) */}
+      <ChangelogModal
+        isOpen={changelogModalOpen}
+        onClose={() => setChangelogModalOpen(false)}
       />
 
       {/* CONTENIDO PRINCIPAL CON PROTECCIÓN EN TIEMPO REAL */}

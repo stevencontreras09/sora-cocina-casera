@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
+import { ThemeProvider } from '@/context/ThemeContext';
 import { PwaRegistration } from '@/components/layout/PwaRegistration';
 
 export const metadata: Metadata = {
@@ -48,6 +49,27 @@ export default function RootLayout({
   return (
     <html lang="es" className="h-full">
       <head>
+        {/* Declarar soporte para esquemas claro y oscuro (Modern Web Guidance) */}
+        <meta name="color-scheme" content="light dark" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var stored = localStorage.getItem('sora_theme');
+                  var systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                  if (stored === 'dark' || (!stored && systemDark) || (stored === 'system' && systemDark)) {
+                    document.documentElement.classList.add('dark');
+                    document.documentElement.style.colorScheme = 'dark';
+                  } else {
+                    document.documentElement.classList.remove('dark');
+                    document.documentElement.style.colorScheme = 'light';
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
@@ -67,10 +89,12 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="Sora" />
       </head>
       <body className="min-h-full font-sans antialiased bg-bg-sora text-text-sora selection:bg-primary-sora/20 selection:text-primary-sora">
-        <AuthProvider>
-          <PwaRegistration />
-          {children}
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <PwaRegistration />
+            {children}
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
