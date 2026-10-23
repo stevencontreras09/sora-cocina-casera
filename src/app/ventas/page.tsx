@@ -39,6 +39,7 @@ import {
   SORA_KITCHEN_COORDS,
 } from '@/lib/routeOptimizer';
 import { MenuManagerModal } from '@/components/ventas/MenuManagerModal';
+import { DynamicDishSelector } from '@/components/ventas/DynamicDishSelector';
 import { ClientModal, ClientAddressFormData } from '@/components/clientes/ClientModal';
 import {
   ShoppingBag,
@@ -517,22 +518,110 @@ export default function VentasPage() {
     setItems(updated);
   };
 
+  // Agregar o seleccionar plato dinámicamente
   const handleAddItem = (dishName = '', price = 0) => {
-    const defaultDish =
-      menuItems[0] || { name: 'Lasaña Casera (Porción Individual)', price: 350 };
-    const finalName = dishName || defaultDish.name;
-    const finalPrice = price || defaultDish.price;
+    // Si viene vacío (botón "+ Agregar Línea"), agregar línea en blanco para llenado manual
+    if (!dishName) {
+      setItems([
+        ...items,
+        {
+          id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          name: '',
+          quantity: 1,
+          price: 0,
+          subtotal: 0,
+        },
+      ]);
+      return;
+    }
 
-    setItems([
-      ...items,
-      {
-        id: `item-${Date.now()}`,
-        name: finalName,
-        quantity: 1,
-        price: finalPrice,
-        subtotal: finalPrice,
-      },
-    ]);
+    // Si solo hay un ítem inicial por defecto sin editar y no estamos editando una orden existente,
+    // reemplazarlo por el plato seleccionado
+    const defaultInitialNames = [
+      'lasaña casera (porción individual)',
+      'lasaña casera',
+      (menuItems[0]?.name || '').toLowerCase().trim(),
+    ];
+    const isVirginDefaultLine =
+      items.length === 1 &&
+      (!items[0].name.trim() || defaultInitialNames.includes(items[0].name.toLowerCase().trim())) &&
+      items[0].quantity === 1 &&
+      !editingOrder;
+
+    if (isVirginDefaultLine) {
+      setItems([
+        {
+          id: items[0].id,
+          name: dishName,
+          quantity: 1,
+          price: price,
+          subtotal: price,
+        },
+      ]);
+      return;
+    }
+
+    // Si el plato ya existe con el mismo nombre y precio, incrementar cantidad
+    const existingIndex = items.findIndex(
+      (it) => it.name.trim().toLowerCase() === dishName.trim().toLowerCase() && it.price === price
+    );
+
+    if (existingIndex >= 0) {
+      const updated = [...items];
+      const it = { ...updated[existingIndex] };
+      it.quantity += 1;
+      it.subtotal = it.quantity * it.price;
+      updated[existingIndex] = it;
+      setItems(updated);
+    } else {
+      setItems([
+        ...items,
+        {
+          id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          name: dishName,
+          quantity: 1,
+          price: price,
+          subtotal: price,
+        },
+      ]);
+    }
+  };
+
+  // Ajustar cantidad de un plato directamente (+1 / -1) desde el selector interactivo
+  const handleUpdateItemQuantity = (dishName: string, price: number, delta: number) => {
+    const existingIndex = items.findIndex(
+      (it) => it.name.trim().toLowerCase() === dishName.trim().toLowerCase() && it.price === price
+    );
+
+    if (existingIndex >= 0) {
+      const updated = [...items];
+      const it = { ...updated[existingIndex] };
+      const newQty = it.quantity + delta;
+
+      if (newQty <= 0) {
+        if (updated.length > 1) {
+          setItems(updated.filter((_, i) => i !== existingIndex));
+        } else {
+          // Si era el único ítem, resetear a línea vacía
+          setItems([
+            {
+              id: `item-${Date.now()}`,
+              name: '',
+              quantity: 1,
+              price: 0,
+              subtotal: 0,
+            },
+          ]);
+        }
+      } else {
+        it.quantity = newQty;
+        it.subtotal = it.quantity * it.price;
+        updated[existingIndex] = it;
+        setItems(updated);
+      }
+    } else if (delta > 0) {
+      handleAddItem(dishName, price);
+    }
   };
 
   const handleRemoveItem = (index: number) => {
@@ -1554,51 +1643,16 @@ export default function VentasPage() {
                 </div>
               </div>
 
-              {/* 4. ITEMS Y PLATOS DEL PEDIDO (CON GESTIÓN DINÁMICA DE MENÚ) */}
+              {/* 4. ITEMS Y PLATOS DEL PEDIDO (CON SELECTOR DINÁMICO Y RESUMIDO) */}
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-semibold text-text-sora/80 uppercase tracking-wider">
-                    4. Platos del Menú *
-                  </label>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      type="button"
-                      onClick={() => setIsMenuModalOpen(true)}
-                      className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-xl bg-bg-sora hover:bg-border-sora/60 border border-border-sora text-text-sora/80 text-xs font-semibold transition-colors"
-                      title="Agregar, editar o eliminar platos del menú"
-                    >
-                      <UtensilsCrossed className="w-3.5 h-3.5 text-primary-sora" />
-                      <span>Gestionar Menú ({menuItems.length})</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleAddItem()}
-                      className="inline-flex items-center space-x-1 text-xs font-bold text-primary-sora hover:underline"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Agregar Línea</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Accesos Rápidos con los platos actuales del Menú (Lasaña 350 y 700 por defecto) */}
-                <div className="flex flex-wrap gap-1.5 pb-1">
-                  {menuItems.map((dish) => (
-                    <button
-                      key={dish.id || dish.name}
-                      type="button"
-                      onClick={() => handleAddItem(dish.name, dish.price)}
-                      className="text-[11px] px-2.5 py-1 rounded-xl bg-white hover:bg-primary-sora/10 hover:border-primary-sora/40 text-text-sora font-semibold border border-border-sora transition-all shadow-2xs flex items-center space-x-1"
-                    >
-                      <Plus className="w-3 h-3 text-primary-sora" />
-                      <span>{dish.name}</span>
-                      <span className="text-primary-sora font-mono font-bold">
-                        ({formatCurrency(dish.price)})
-                      </span>
-                    </button>
-                  ))}
-                </div>
+                <DynamicDishSelector
+                  menuItems={menuItems}
+                  orderItems={items}
+                  onSelectDish={(name, price) => handleAddItem(name, price)}
+                  onUpdateQuantity={handleUpdateItemQuantity}
+                  onOpenMenuManager={() => setIsMenuModalOpen(true)}
+                  onAddNewLine={() => handleAddItem()}
+                />
 
                 <div className="space-y-2">
                   {items.map((item, index) => (
