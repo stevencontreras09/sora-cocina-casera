@@ -213,8 +213,8 @@ export function MenuManagerModal({
                   </span>
                   <input
                     type="number"
-                    min="1"
-                    step="25"
+                    min="0"
+                    step="any"
                     required
                     placeholder="Precio"
                     value={newPrice}
@@ -284,8 +284,8 @@ export function MenuManagerModal({
                             </span>
                             <input
                               type="number"
-                              min="1"
-                              step="25"
+                              min="0"
+                              step="any"
                               value={editPrice}
                               onChange={(e) =>
                                 setEditPrice(

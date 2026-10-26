@@ -665,7 +665,7 @@ export default function InventarioPage() {
                   </label>
                   <input
                     type="number"
-                    step="0.1"
+                    step="any"
                     min="0"
                     required
                     placeholder="Ej: 25.0"
@@ -681,8 +681,8 @@ export default function InventarioPage() {
                   </label>
                   <input
                     type="number"
-                    step="0.1"
-                    min="1"
+                    step="any"
+                    min="0"
                     required
                     placeholder="Ej: 8.0"
                     value={minAlertStock}
@@ -698,7 +698,7 @@ export default function InventarioPage() {
                 </label>
                 <input
                   type="number"
-                  step="0.5"
+                  step="any"
                   min="0"
                   placeholder="Ej: 195 por libra"
                   value={costPerUnit}
@@ -785,8 +785,8 @@ export default function InventarioPage() {
                   </label>
                   <input
                     type="number"
-                    step="0.1"
-                    min="0.1"
+                    step="any"
+                    min="0"
                     required
                     placeholder="Ej: 10"
                     value={purchaseQuantity}
@@ -801,8 +801,8 @@ export default function InventarioPage() {
                   </label>
                   <input
                     type="number"
-                    step="1"
-                    min="1"
+                    step="any"
+                    min="0"
                     required
                     placeholder="Ej: 2200"
                     value={purchaseCost}

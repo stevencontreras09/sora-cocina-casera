@@ -387,8 +387,8 @@ export default function GastosPage() {
                   <DollarSign className="w-4 h-4 absolute left-3 top-3 text-text-sora/40 pointer-events-none" />
                   <input
                     type="number"
-                    min="1"
-                    step="5"
+                    min="0"
+                    step="any"
                     required
                     placeholder="Ej: 850"
                     value={amount}
@@ -436,7 +436,7 @@ export default function GastosPage() {
                   <Scale className="w-4 h-4 absolute left-3 top-3 text-text-sora/40 pointer-events-none" />
                   <input
                     type="number"
-                    step="0.1"
+                    step="any"
                     min="0"
                     placeholder="Ej: 25.5"
                     value={quantity}

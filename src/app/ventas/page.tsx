@@ -1687,7 +1687,7 @@ export default function VentasPage() {
                         <input
                           type="number"
                           min="0"
-                          step="10"
+                          step="any"
                           required
                           value={item.price}
                           onChange={(e) => handleItemChange(index, 'price', e.target.value)}
@@ -1775,7 +1775,7 @@ export default function VentasPage() {
                       <input
                         type="number"
                         min="0"
-                        step="25"
+                        step="any"
                         value={deliveryFee}
                         onChange={(e) => setDeliveryFee(Math.max(0, parseFloat(e.target.value) || 0))}
                         className="w-full pl-9 pr-2 py-1.5 rounded-xl border border-border-sora bg-white text-xs font-bold text-text-sora text-right font-mono focus:outline-none focus:ring-1 focus:ring-primary-sora"

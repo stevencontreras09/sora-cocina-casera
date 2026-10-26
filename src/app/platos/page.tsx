@@ -595,7 +595,7 @@ export default function PlatosRecetasPage() {
                   </label>
                   <input
                     type="number"
-                    step="1"
+                    step="any"
                     min="0"
                     required
                     placeholder="Ej: 350"
@@ -688,8 +688,8 @@ export default function PlatosRecetasPage() {
                       </label>
                       <input
                         type="number"
-                        step="0.05"
-                        min="0.01"
+                        step="any"
+                        min="0"
                         value={ingredientQuantity}
                         onChange={(e) => setIngredientQuantity(e.target.value)}
                         className="w-full px-3 py-2 rounded-xl border border-border-sora bg-white text-text-sora text-xs font-bold text-center focus:outline-none focus:ring-1 focus:ring-primary-sora"
