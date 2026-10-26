@@ -41,6 +41,7 @@ import {
 import { MenuManagerModal } from '@/components/ventas/MenuManagerModal';
 import { DynamicDishSelector } from '@/components/ventas/DynamicDishSelector';
 import { ClientModal, ClientAddressFormData } from '@/components/clientes/ClientModal';
+import { SORA_PAYMENT_MESSAGE_BLOCK } from '@/lib/constants';
 import {
   ShoppingBag,
   Plus,
@@ -73,6 +74,7 @@ import {
   Filter,
   Phone,
   UserPlus,
+  Copy,
 } from 'lucide-react';
 
 export default function VentasPage() {
@@ -640,6 +642,53 @@ export default function VentasPage() {
     () => subtotalDishes + (Number(deliveryFee) || 0),
     [subtotalDishes, deliveryFee]
   );
+
+  // Estados y helpers para copiar cotizaciones con datos de pago
+  const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null);
+  const [copiedFormQuote, setCopiedFormQuote] = useState(false);
+
+  const handleCopyOrderQuote = (order: Order, trackingUrl: string) => {
+    const orderFee = order.delivery_fee || 0;
+    const text =
+      `¡Hola ${order.client_name}! 🍲 Tu cotización / pedido #${order.order_number} en Sora Cocina Casera:\n\n` +
+      (order.items || [])
+        .map((it) => `• ${it.quantity}x ${it.name} (${formatCurrency(it.subtotal)})`)
+        .join('\n') +
+      (orderFee > 0 ? `\n🛵 Envío: ${formatCurrency(orderFee)}` : '') +
+      `\n💰 Total: ${formatCurrency(order.total)}` +
+      (order.delivery_time ? `\n⏰ Horario de entrega: ${order.delivery_time}` : '') +
+      (order.address ? `\n📍 Dirección: ${order.address}` : '') +
+      `\n\n🛵 Sigue el estado de tu pedido en vivo aquí:\n👉 ${trackingUrl}` +
+      `\n\n────────────────────\n${SORA_PAYMENT_MESSAGE_BLOCK}`;
+
+    if (typeof window !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedOrderId(order.id);
+      setTimeout(() => setCopiedOrderId(null), 2500);
+    }
+  };
+
+  const handleCopyFormQuote = () => {
+    const clientName = currentClient?.name || 'Cliente';
+    const clientAddress = currentAddress?.address || currentClient?.addresses?.[0]?.address || '';
+    const text =
+      `¡Hola ${clientName}! 🍲 Cotización de Sora Cocina Casera:\n\n` +
+      items
+        .filter((it) => it.name && it.name.trim())
+        .map((it) => `• ${it.quantity}x ${it.name} (${formatCurrency(it.subtotal)})`)
+        .join('\n') +
+      (deliveryFee > 0 ? `\n🛵 Envío estimado: ${formatCurrency(deliveryFee)}` : '') +
+      `\n💰 Total estimado: ${formatCurrency(totalCalculated)}` +
+      (deliveryTime ? `\n⏰ Horario solicitado: ${deliveryTime}` : '') +
+      (clientAddress ? `\n📍 Destino: ${clientAddress}` : '') +
+      `\n\n────────────────────\n${SORA_PAYMENT_MESSAGE_BLOCK}`;
+
+    if (typeof window !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedFormQuote(true);
+      setTimeout(() => setCopiedFormQuote(false), 2500);
+    }
+  };
 
   const filteredClients = useMemo(() => {
     const q = clientSearchQuery.toLowerCase().trim();
@@ -1823,8 +1872,8 @@ export default function VentasPage() {
                   </div>
                 </div>
 
-                {/* Total Final */}
-                <div className="pt-2 border-t border-primary-sora/20 flex items-center justify-between">
+                {/* Total Final y Botón Rápido de Cotización */}
+                <div className="pt-2 border-t border-primary-sora/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                   <div>
                     <span className="text-xs font-bold text-primary-sora uppercase tracking-wider block">
                       Total a Cobrar
@@ -1833,9 +1882,30 @@ export default function VentasPage() {
                       Platos ({formatCurrency(subtotalDishes)}) + Envío ({formatCurrency(deliveryFee)})
                     </span>
                   </div>
-                  <span className="font-serif text-2xl font-bold text-primary-sora">
-                    {formatCurrency(totalCalculated)}
-                  </span>
+
+                  <div className="flex items-center space-x-2.5">
+                    <button
+                      type="button"
+                      onClick={handleCopyFormQuote}
+                      className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-primary-sora/40 bg-white hover:bg-primary-sora/10 text-primary-sora text-xs font-bold transition-all shadow-2xs active:scale-95"
+                      title="Copiar cotización con cuentas bancarias para enviar al cliente por WhatsApp"
+                    >
+                      {copiedFormQuote ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-emerald-700">¡Cotización copiada con cuentas!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copiar Cotización con Cuentas</span>
+                        </>
+                      )}
+                    </button>
+                    <span className="font-serif text-2xl font-bold text-primary-sora">
+                      {formatCurrency(totalCalculated)}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -2139,7 +2209,7 @@ export default function VentasPage() {
                     const trackingUrl = `${trackingOrigin}/rastreo/${order.order_number}`;
 
                     const whatsappMsg = encodeURIComponent(
-                      `¡Hola ${order.client_name}! 🍲 Tu pedido #${order.order_number} en Sora Cocina Casera:\n\n` +
+                      `¡Hola ${order.client_name}! 🍲 Tu cotización / pedido #${order.order_number} en Sora Cocina Casera:\n\n` +
                         (order.items || [])
                           .map((it) => `• ${it.quantity}x ${it.name} (${formatCurrency(it.subtotal)})`)
                           .join('\n') +
@@ -2148,7 +2218,7 @@ export default function VentasPage() {
                         (order.delivery_time ? `\n⏰ Horario de entrega: ${order.delivery_time}` : '') +
                         `\n📍 Dirección: ${order.address}` +
                         `\n\n🛵 Sigue el estado de tu pedido en vivo aquí:\n👉 ${trackingUrl}` +
-                        `\n\n¡Muchas gracias por elegir Sora!`
+                        `\n\n────────────────────\n${SORA_PAYMENT_MESSAGE_BLOCK}`
                     );
 
                     const isBeingEdited = editingOrder?.id === order.id;
@@ -2163,7 +2233,8 @@ export default function VentasPage() {
                         (order.items || []).map((it) => `  - ${it.quantity}x ${it.name} (${formatCurrency(it.subtotal)})`).join('\n') +
                         (orderFee > 0 ? `\n• Envío a Domicilio: ${formatCurrency(orderFee)}` : order.delivery_user_name === 'Retiro en Local' || order.delivery_type === 'pickup' ? `\n• Modalidad: Retiro en Local Sora` : '') +
                         `\n• Total: ${formatCurrency(order.total)}` +
-                        `\n\nTu orden está en nuestra agenda de horneado artesanal. ¿Todo listo para recibirlo? ¡Que pases un excelente día!`
+                        `\n\nTu orden está en nuestra agenda de horneado artesanal.\n\n` +
+                        `────────────────────\n${SORA_PAYMENT_MESSAGE_BLOCK}`
                     );
 
                     return (
@@ -2396,13 +2467,33 @@ export default function VentasPage() {
                               <span>Rastreo</span>
                             </a>
 
+                            {/* Copiar Cotización Completa con Cuentas */}
+                            <button
+                              type="button"
+                              onClick={() => handleCopyOrderQuote(order, trackingUrl)}
+                              className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl border border-border-sora bg-white hover:bg-bg-sora text-text-sora text-[11px] font-semibold transition-all shadow-2xs active:scale-95"
+                              title="Copiar cotización con cuentas bancarias al portapapeles"
+                            >
+                              {copiedOrderId === order.id ? (
+                                <>
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span className="text-emerald-700 font-bold">¡Copiado!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3.5 h-3.5 text-text-sora/60" />
+                                  <span>Cotización</span>
+                                </>
+                              )}
+                            </button>
+
                             {/* Notificación regular de WhatsApp */}
                             <a
                               href={`https://wa.me/${cleanPhone}?text=${whatsappMsg}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-whatsapp hover:bg-[#20bd5a] text-white text-[11px] font-semibold transition-all shadow-xs active:scale-95"
-                              title="Enviar resumen y link de rastreo por WhatsApp"
+                              title="Enviar cotización completa y link de rastreo por WhatsApp"
                             >
                               <MessageCircle className="w-3.5 h-3.5" />
                               <span>WhatsApp</span>

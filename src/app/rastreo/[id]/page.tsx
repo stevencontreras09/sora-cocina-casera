@@ -8,7 +8,7 @@ import { Order, OrderStatus } from '@/types/database.types';
 import { isValidUuid } from '@/lib/storage';
 import { formatCurrency } from '@/lib/utils';
 import { playKitchenChime, triggerVibration } from '@/lib/audioAlerts';
-import { SORA_CONFIG } from '@/lib/constants';
+import { SORA_CONFIG, SORA_PAYMENT_ACCOUNTS } from '@/lib/constants';
 import { CURRENT_APP_VERSION } from '@/lib/version';
 import {
   SORA_KITCHEN_COORDS,
@@ -34,6 +34,7 @@ import {
   Navigation,
   Compass,
   ExternalLink,
+  CreditCard,
 } from 'lucide-react';
 
 const GOOGLE_LIBRARIES: ('places')[] = ['places'];
@@ -68,7 +69,16 @@ export default function PublicOrderTrackingPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+
+  const copyToClipboard = (text: string, identifier: string) => {
+    if (typeof window !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedField(identifier);
+      setTimeout(() => setCopiedField(null), 2000);
+    }
+  };
 
   // Coordenadas en tiempo real del repartidor
   const [driverCoords, setDriverCoords] = useState<{
@@ -892,6 +902,149 @@ export default function PublicOrderTrackingPage() {
                   </span>
                 </div>
               </div>
+            </div>
+
+            {/* DATOS PARA REALIZAR EL PAGO 💳 */}
+            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-border-sora shadow-sm space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-border-sora">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-800 flex items-center justify-center flex-shrink-0">
+                    <CreditCard className="w-5 h-5 text-amber-700" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-bold text-base text-text-sora">
+                      Datos para realizar tu pago 💳
+                    </h3>
+                    <p className="text-[11px] text-text-sora/60">
+                      Transferencias o depósitos bancarios
+                    </p>
+                  </div>
+                </div>
+                {order.payment_status === 'pagado' && (
+                  <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    ✓ Pago Registrado
+                  </span>
+                )}
+              </div>
+
+              {/* Titular, Cédula y Correo */}
+              <div className="p-3.5 rounded-2xl bg-bg-sora/60 border border-border-sora space-y-2 text-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <span className="text-text-sora/70 font-medium">Nombre:</span>
+                  <span className="font-bold text-text-sora sm:text-right">
+                    {SORA_PAYMENT_ACCOUNTS.holderName}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-1 pt-1.5 border-t border-border-sora/50">
+                  <span className="text-text-sora/70 font-medium">Cédula:</span>
+                  <div className="flex items-center space-x-1.5">
+                    <span className="font-mono font-bold text-text-sora">
+                      {SORA_PAYMENT_ACCOUNTS.holderId}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(SORA_PAYMENT_ACCOUNTS.holderId, 'cedula')}
+                      className="p-1 rounded-lg bg-white border border-border-sora hover:bg-bg-sora text-text-sora/70 hover:text-primary-sora transition-colors shadow-2xs"
+                      title="Copiar número de cédula"
+                    >
+                      {copiedField === 'cedula' ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-1 pt-1.5 border-t border-border-sora/50">
+                  <span className="text-text-sora/70 font-medium">Correo:</span>
+                  <div className="flex items-center space-x-1.5">
+                    <span className="font-mono text-[11px] text-text-sora truncate max-w-[210px]">
+                      {SORA_PAYMENT_ACCOUNTS.email}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(SORA_PAYMENT_ACCOUNTS.email, 'correo')}
+                      className="p-1 rounded-lg bg-white border border-border-sora hover:bg-bg-sora text-text-sora/70 hover:text-primary-sora transition-colors shadow-2xs"
+                      title="Copiar correo electrónico"
+                    >
+                      {copiedField === 'correo' ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cuentas Bancarias */}
+              <div className="space-y-2">
+                <span className="text-[11px] font-bold text-text-sora/80 uppercase tracking-wider block">
+                  Cuentas Disponibles:
+                </span>
+                <div className="grid grid-cols-1 gap-2">
+                  {SORA_PAYMENT_ACCOUNTS.banks.map((b) => (
+                    <div
+                      key={b.name}
+                      className="p-3 rounded-2xl bg-white border border-border-sora flex items-center justify-between gap-2 shadow-2xs hover:border-primary-sora/40 transition-colors"
+                    >
+                      <div>
+                        <div className="flex items-center space-x-1.5">
+                          <span className="font-bold text-xs text-text-sora">{b.name}</span>
+                          <span className="text-[10px] text-text-sora/50 font-medium">({b.type})</span>
+                        </div>
+                        <span className="font-mono font-bold text-primary-sora text-sm tracking-wide">
+                          {b.accountNumber}
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(b.accountNumber, b.name)}
+                        className="px-2.5 py-1.5 rounded-xl border border-border-sora bg-bg-sora/60 hover:bg-primary-sora/10 hover:border-primary-sora/40 text-text-sora text-xs font-semibold flex items-center space-x-1 transition-all active:scale-95"
+                        title={`Copiar número de cuenta de ${b.name}`}
+                      >
+                        {copiedField === b.name ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            <span className="text-emerald-700 text-[11px] font-bold">¡Copiado!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5 text-text-sora/50" />
+                            <span className="text-[11px]">Copiar</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Notas de Envío y Comprobante */}
+              <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200 text-xs text-amber-950 space-y-1.5">
+                <p className="font-bold flex items-center">
+                  <span className="mr-1.5">📦</span> {SORA_PAYMENT_ACCOUNTS.shippingNote}
+                </p>
+                <p className="text-[11px] text-amber-900/90 leading-relaxed">
+                  {SORA_PAYMENT_ACCOUNTS.receiptNote}
+                </p>
+              </div>
+
+              {/* Botón WhatsApp para enviar comprobante */}
+              <a
+                href={`https://wa.me/${SORA_CONFIG.whatsappNumber}?text=${encodeURIComponent(
+                  `¡Hola Sora Cocina Casera! Adjunto mi comprobante de pago de la Orden #${order.order_number} (${formatCurrency(order.total)}).`
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-3 px-4 rounded-2xl bg-whatsapp hover:bg-[#20bd5a] text-white font-bold text-xs flex items-center justify-center space-x-2 shadow-md shadow-whatsapp/20 active:scale-95 transition-all"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span>Enviar Comprobante por WhatsApp</span>
+              </a>
             </div>
 
             {/* DIRECCIÓN DE ENTREGA O RETIRO */}
