@@ -207,8 +207,8 @@ export function MenuManagerModal({
               </div>
 
               <div className="sm:col-span-3">
-                <div className="relative">
-                  <span className="absolute left-2.5 top-2 text-xs font-bold text-text-sora/40">
+                <div className="relative min-w-[100px]">
+                  <span className="absolute left-2.5 top-2 text-xs font-bold text-text-sora/40 pointer-events-none">
                     RD$
                   </span>
                   <input
@@ -221,7 +221,7 @@ export function MenuManagerModal({
                     onChange={(e) =>
                       setNewPrice(e.target.value === '' ? '' : parseFloat(e.target.value))
                     }
-                    className="w-full pl-9 pr-2 py-2 rounded-xl border border-border-sora bg-white text-xs font-bold text-text-sora text-right font-mono focus:outline-none focus:ring-1 focus:ring-primary-sora"
+                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-border-sora bg-white text-xs font-bold text-text-sora text-right font-mono focus:outline-none focus:ring-1 focus:ring-primary-sora"
                   />
                 </div>
               </div>
@@ -268,8 +268,8 @@ export function MenuManagerModal({
                       <span className="text-[10px] font-bold text-amber-800 uppercase">
                         Editando Plato
                       </span>
-                      <div className="grid grid-cols-12 gap-2">
-                        <div className="col-span-7">
+                      <div className="grid grid-cols-12 gap-2 items-center">
+                        <div className="col-span-12 sm:col-span-6">
                           <input
                             type="text"
                             value={editName}
@@ -277,9 +277,9 @@ export function MenuManagerModal({
                             className="w-full px-3 py-1.5 rounded-xl border border-border-sora bg-white text-xs font-medium"
                           />
                         </div>
-                        <div className="col-span-3">
-                          <div className="relative">
-                            <span className="absolute left-2.5 top-1.5 text-xs font-bold text-text-sora/40">
+                        <div className="col-span-7 sm:col-span-4">
+                          <div className="relative min-w-[100px]">
+                            <span className="absolute left-2.5 top-1.5 text-xs font-bold text-text-sora/40 pointer-events-none">
                               RD$
                             </span>
                             <input
@@ -292,11 +292,11 @@ export function MenuManagerModal({
                                   e.target.value === '' ? '' : parseFloat(e.target.value)
                                 )
                               }
-                              className="w-full pl-9 pr-2 py-1.5 rounded-xl border border-border-sora bg-white text-xs font-bold text-right font-mono"
+                              className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-border-sora bg-white text-xs font-bold text-right font-mono"
                             />
                           </div>
                         </div>
-                        <div className="col-span-2 flex items-center justify-end space-x-1">
+                        <div className="col-span-5 sm:col-span-2 flex items-center justify-end space-x-1">
                           <button
                             type="button"
                             onClick={saveEdit}

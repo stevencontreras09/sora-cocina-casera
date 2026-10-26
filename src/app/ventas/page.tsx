@@ -1703,13 +1703,22 @@ export default function VentasPage() {
                   onAddNewLine={() => handleAddItem()}
                 />
 
-                <div className="space-y-2">
+                {/* Encabezado descriptivo para columnas en pantallas medianas y grandes */}
+                <div className="hidden sm:grid grid-cols-12 gap-2 px-3 text-[10px] font-bold text-text-sora/60 uppercase tracking-wider">
+                  <span className="col-span-5">Plato / Descripción</span>
+                  <span className="col-span-2 text-center">Cantidad</span>
+                  <span className="col-span-2 text-center sm:text-right">Precio Unit. (RD$)</span>
+                  <span className="col-span-3 text-right pr-6">Subtotal</span>
+                </div>
+
+                <div className="space-y-2.5">
                   {items.map((item, index) => (
                     <div
                       key={item.id}
-                      className="p-3 rounded-2xl bg-bg-sora/40 border border-border-sora grid grid-cols-12 gap-2 items-center"
+                      className="p-3 rounded-2xl bg-bg-sora/40 border border-border-sora grid grid-cols-12 gap-2 sm:gap-2.5 items-center hover:border-primary-sora/40 transition-colors"
                     >
-                      <div className="col-span-6 sm:col-span-7">
+                      {/* Nombre del plato: ocupa ancho completo en móvil y 5 columnas en desktop */}
+                      <div className="col-span-12 sm:col-span-5">
                         <input
                           type="text"
                           required
@@ -1721,38 +1730,61 @@ export default function VentasPage() {
                         />
                       </div>
 
-                      <div className="col-span-2">
-                        <input
-                          type="number"
-                          min="1"
-                          required
-                          value={item.quantity}
-                          onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
-                          className="w-full px-2 py-2 rounded-xl border border-border-sora bg-white text-xs text-text-sora text-center focus:outline-none focus:ring-1 focus:ring-primary-sora font-bold"
-                        />
+                      {/* Cantidad: tamaño cómodo para 1 o varios dígitos */}
+                      <div className="col-span-3 sm:col-span-2">
+                        <div className="relative">
+                          <span className="sm:hidden text-[9px] font-bold text-text-sora/50 uppercase block mb-0.5">
+                            Cant:
+                          </span>
+                          <input
+                            type="number"
+                            min="1"
+                            required
+                            placeholder="1"
+                            value={item.quantity}
+                            onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
+                            className="w-full min-w-[50px] px-2 py-2 rounded-xl border border-border-sora bg-white text-xs text-text-sora text-center focus:outline-none focus:ring-1 focus:ring-primary-sora font-bold"
+                            title="Cantidad de porciones"
+                          />
+                        </div>
                       </div>
 
-                      <div className="col-span-2 sm:col-span-1">
-                        <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          required
-                          value={item.price}
-                          onChange={(e) => handleItemChange(index, 'price', e.target.value)}
-                          className="w-full px-2 py-2 rounded-xl border border-border-sora bg-white text-xs text-text-sora text-right focus:outline-none focus:ring-1 focus:ring-primary-sora font-mono"
-                        />
+                      {/* Precio Unitario: amplio espacio garantizado (mínimo 85px) para ver números grandes completos */}
+                      <div className="col-span-4 sm:col-span-2">
+                        <div className="relative">
+                          <span className="sm:hidden text-[9px] font-bold text-text-sora/50 uppercase block mb-0.5">
+                            Precio (RD$):
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            required
+                            placeholder="RD$ Precio"
+                            value={item.price}
+                            onChange={(e) => handleItemChange(index, 'price', e.target.value)}
+                            className="w-full min-w-[85px] px-3 py-2 rounded-xl border border-border-sora bg-white text-xs text-text-sora text-center sm:text-right focus:outline-none focus:ring-1 focus:ring-primary-sora font-mono font-bold"
+                            title="Precio unitario en pesos dominicanos"
+                          />
+                        </div>
                       </div>
 
-                      <div className="col-span-2 flex items-center justify-end space-x-1">
-                        <span className="text-xs font-bold text-text-sora font-mono">
-                          {formatCurrency(item.subtotal)}
-                        </span>
+                      {/* Subtotal calculado y botón de eliminar */}
+                      <div className="col-span-5 sm:col-span-3 flex items-center justify-end space-x-1.5 sm:space-x-2 pt-2.5 sm:pt-0">
+                        <div className="text-right">
+                          <span className="sm:hidden text-[9px] font-bold text-text-sora/50 uppercase block">
+                            Subtotal:
+                          </span>
+                          <span className="text-xs font-bold text-text-sora font-mono">
+                            {formatCurrency(item.subtotal)}
+                          </span>
+                        </div>
                         <button
                           type="button"
                           onClick={() => handleRemoveItem(index)}
                           disabled={items.length <= 1}
-                          className="text-text-sora/30 hover:text-red-500 disabled:opacity-20 transition-colors p-1"
+                          className="text-text-sora/30 hover:text-red-500 disabled:opacity-20 transition-colors p-1.5 rounded-lg hover:bg-red-50"
+                          title="Eliminar plato de la orden"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -1817,8 +1849,8 @@ export default function VentasPage() {
                     <label className="text-xs font-semibold text-text-sora/80">
                       Costo de Envío (DOP):
                     </label>
-                    <div className="relative w-28">
-                      <span className="absolute left-2.5 top-2 text-xs text-text-sora/50 font-bold">
+                    <div className="relative w-36 min-w-[130px]">
+                      <span className="absolute left-2.5 top-2 text-xs text-text-sora/50 font-bold pointer-events-none">
                         RD$
                       </span>
                       <input
@@ -1827,7 +1859,7 @@ export default function VentasPage() {
                         step="any"
                         value={deliveryFee}
                         onChange={(e) => setDeliveryFee(Math.max(0, parseFloat(e.target.value) || 0))}
-                        className="w-full pl-9 pr-2 py-1.5 rounded-xl border border-border-sora bg-white text-xs font-bold text-text-sora text-right font-mono focus:outline-none focus:ring-1 focus:ring-primary-sora"
+                        className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-border-sora bg-white text-xs font-bold text-text-sora text-right font-mono focus:outline-none focus:ring-1 focus:ring-primary-sora"
                       />
                     </div>
                   </div>

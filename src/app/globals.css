@@ -34,6 +34,17 @@
     transition: background-color 0.2s ease, color 0.2s ease;
   }
 
+  /* Ocultar flechas automáticas (spin buttons) en inputs numéricos para que los números no se corten en ningún dispositivo */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
   /* Barra de desplazamiento suave y artesanal */
   ::-webkit-scrollbar {
     width: 6px;

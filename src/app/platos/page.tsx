@@ -682,7 +682,7 @@ export default function PlatosRecetasPage() {
                       </select>
                     </div>
 
-                    <div className="sm:col-span-3">
+                    <div className="col-span-7 sm:col-span-3">
                       <label className="block text-[11px] font-semibold text-text-sora/70 mb-1">
                         Cantidad por plato:
                       </label>
@@ -696,7 +696,7 @@ export default function PlatosRecetasPage() {
                       />
                     </div>
 
-                    <div className="sm:col-span-2">
+                    <div className="col-span-5 sm:col-span-2">
                       <button
                         type="button"
                         onClick={handleAddIngredientToRecipe}
