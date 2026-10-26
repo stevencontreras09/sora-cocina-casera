@@ -45,6 +45,30 @@
     appearance: textfield;
   }
 
+  /* Asegurar que las sugerencias de Google Places y mapas se vean siempre por encima de modales */
+  .pac-container {
+    z-index: 99999 !important;
+    pointer-events: auto !important;
+    border-radius: 1rem !important;
+    border: 1px solid #EADCCF !important;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2) !important;
+    font-family: inherit !important;
+    margin-top: 4px !important;
+  }
+  .pac-item {
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+    cursor: pointer !important;
+  }
+  .pac-item:hover {
+    background-color: #FBF6F0 !important;
+  }
+  .pac-item-query {
+    font-size: 13px !important;
+    color: #1E1815 !important;
+    font-weight: 600 !important;
+  }
+
   /* Barra de desplazamiento suave y artesanal */
   ::-webkit-scrollbar {
     width: 6px;
