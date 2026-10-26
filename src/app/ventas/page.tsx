@@ -12,7 +12,7 @@ import {
   OrderStatus,
   MenuItem,
 } from '@/types/database.types';
-import { formatCurrency, cleanPhoneNumber } from '@/lib/utils';
+import { formatCurrency, cleanPhoneNumber, buildWhatsAppLink } from '@/lib/utils';
 import {
   saveStoredOrders,
   getStoredOrders,
@@ -2208,7 +2208,8 @@ export default function VentasPage() {
                         : 'https://sora-cocina-casera-git-main-pppt1.vercel.app';
                     const trackingUrl = `${trackingOrigin}/rastreo/${order.order_number}`;
 
-                    const whatsappMsg = encodeURIComponent(
+                    const whatsappUrl = buildWhatsAppLink(
+                      order.client_phone,
                       `¡Hola ${order.client_name}! 🍲 Tu cotización / pedido #${order.order_number} en Sora Cocina Casera:\n\n` +
                         (order.items || [])
                           .map((it) => `• ${it.quantity}x ${it.name} (${formatCurrency(it.subtotal)})`)
@@ -2226,7 +2227,8 @@ export default function VentasPage() {
                     const isFutureDay = Boolean(order.delivery_date && order.delivery_date > todayStr);
                     const isOrderArchived = archivedOrderIds.has(order.id);
 
-                    const futureWhatsAppMsg = encodeURIComponent(
+                    const futureWhatsAppUrl = buildWhatsAppLink(
+                      order.client_phone,
                       `¡Hola ${order.client_name}! Te saludamos de Sora Cocina Casera 🍲.\n\n` +
                         `Te confirmamos con gusto tu pedido #${order.order_number} agendado para el ${order.delivery_date}${order.delivery_time ? ` a las ${order.delivery_time}` : ''}.\n\n` +
                         `• Platos:\n` +
@@ -2299,7 +2301,7 @@ export default function VentasPage() {
                               </span>
                             </div>
                             <a
-                              href={`https://wa.me/${cleanPhone}?text=${futureWhatsAppMsg}`}
+                              href={futureWhatsAppUrl}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold transition-all shadow-xs flex-shrink-0"
@@ -2489,7 +2491,7 @@ export default function VentasPage() {
 
                             {/* Notificación regular de WhatsApp */}
                             <a
-                              href={`https://wa.me/${cleanPhone}?text=${whatsappMsg}`}
+                              href={whatsappUrl}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-whatsapp hover:bg-[#20bd5a] text-white text-[11px] font-semibold transition-all shadow-xs active:scale-95"

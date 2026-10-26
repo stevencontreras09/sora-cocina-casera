@@ -5,7 +5,7 @@ import { AppNavigation } from '@/components/layout/AppNavigation';
 import { useAuth } from '@/context/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import { Order, OrderStatus } from '@/types/database.types';
-import { formatCurrency, cleanPhoneNumber } from '@/lib/utils';
+import { formatCurrency, cleanPhoneNumber, buildWhatsAppLink } from '@/lib/utils';
 import { getStoredOrders, saveStoredOrders, isValidUuid, calculateOrderUrgency } from '@/lib/storage';
 import { triggerKitchenAlert } from '@/lib/audioAlerts';
 import {
@@ -470,9 +470,10 @@ export default function DeliveryMobilePage() {
                   : 'https://sora-cocina-casera-git-main-pppt1.vercel.app';
               const trackingLink = `${trackingBaseUrl}/rastreo/${order.order_number}`;
 
-              const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
+              const whatsappUrl = buildWhatsAppLink(
+                order.client_phone,
                 `¡Hola ${clientFirstName}! 🛵 Tu repartidor de Sora Cocina Casera va en camino con tu pedido #${order.order_number}.\n\nPuedes seguir la entrega en tiempo real aquí:\n👉 ${trackingLink}`
-              )}`;
+              );
               const callUrl = `tel:${cleanPhone}`;
 
               const googleMapsUrl =

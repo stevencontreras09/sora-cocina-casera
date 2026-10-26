@@ -8,7 +8,7 @@ import { createClient } from '@/lib/supabase/client';
 import { ClientModal, ClientAddressFormData } from '@/components/clientes/ClientModal';
 import { AddressModal } from '@/components/clientes/AddressModal';
 import { ImportWhatsAppModal } from '@/components/clientes/ImportWhatsAppModal';
-import { cleanPhoneNumber } from '@/lib/utils';
+import { cleanPhoneNumber, buildWhatsAppLink } from '@/lib/utils';
 import { SORA_KITCHEN_COORDS } from '@/lib/routeOptimizer';
 import {
   saveStoredClients,
@@ -711,9 +711,10 @@ export default function ClientesPage() {
                 a.label?.toLowerCase().includes('retiro') ||
                 a.reference?.toLowerCase().includes('pickup')
             );
-            const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
+            const whatsappUrl = buildWhatsAppLink(
+              client.phone,
               `Hola ${client.name}, te escribimos de Sora Cocina Casera...`
-            )}`;
+            );
 
             return (
               <div

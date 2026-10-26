@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Order } from '@/types/database.types';
 import { triggerKitchenAlert } from '@/lib/audioAlerts';
+import { buildWhatsAppLink } from '@/lib/utils';
 import {
   Clock,
   Flame,
@@ -305,14 +306,15 @@ export function ProductionReminderAlerts({
 
                     <div className="pt-2 border-t border-border-sora/50 flex items-center justify-between gap-1 text-[11px]">
                       <a
-                        href={`https://wa.me/${(order.client_phone || '').replace(/\D/g, '')}?text=${encodeURIComponent(
+                        href={buildWhatsAppLink(
+                          order.client_phone || '',
                           `¡Hola ${order.client_name}! Te saludamos de Sora Cocina Casera 🍲.\n\n` +
                           `Te confirmamos con gusto tu pedido #${order.order_number} agendado para el ${dateLabel}${order.delivery_time ? ` a las ${order.delivery_time}` : ''}.\n\n` +
                           `• Platos:\n` +
                           order.items.map((i) => `  - ${i.quantity}x ${i.name}`).join('\n') +
                           `\n• Total: RD$ ${order.total?.toLocaleString('es-DO')}` +
                           `\n\nTu orden está en nuestra lista de horneado artesanal. ¿Todo listo para recibirlo? ¡Que pases un excelente día!`
-                        )}`}
+                        )}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[10px] transition-all shadow-2xs"

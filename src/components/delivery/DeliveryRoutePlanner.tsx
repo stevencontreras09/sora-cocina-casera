@@ -9,7 +9,7 @@ import {
   RouteStop,
   OptimizedRouteResult,
 } from '@/lib/routeOptimizer';
-import { formatCurrency, cleanPhoneNumber } from '@/lib/utils';
+import { formatCurrency, cleanPhoneNumber, buildWhatsAppLink } from '@/lib/utils';
 import {
   Navigation,
   Compass,
@@ -362,9 +362,10 @@ export function DeliveryRoutePlanner({
           const isPaid = order.payment_status === 'pagado';
           const isEnCamino = (order.status || '').toLowerCase() === 'en camino';
 
-          const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
+          const whatsappUrl = buildWhatsAppLink(
+            order.client_phone,
             `Hola ${clientFirstName}, voy en camino con tu pedido #${order.order_number} de Sora Cocina Casera.`
-          )}`;
+          );
           const callUrl = `tel:${cleanPhone}`;
 
           const singleGoogleMapsUrl =

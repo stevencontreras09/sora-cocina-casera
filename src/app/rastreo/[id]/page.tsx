@@ -6,7 +6,7 @@ import { GoogleMap, useJsApiLoader, Marker, Polyline } from '@react-google-maps/
 import { createClient } from '@/lib/supabase/client';
 import { Order, OrderStatus } from '@/types/database.types';
 import { isValidUuid } from '@/lib/storage';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, buildWhatsAppLink } from '@/lib/utils';
 import { playKitchenChime, triggerVibration } from '@/lib/audioAlerts';
 import { SORA_CONFIG, SORA_PAYMENT_ACCOUNTS } from '@/lib/constants';
 import { CURRENT_APP_VERSION } from '@/lib/version';
@@ -384,10 +384,10 @@ export default function PublicOrderTrackingPage() {
   };
 
   const whatsappHelpUrl = useMemo(() => {
-    const text = encodeURIComponent(
+    return buildWhatsAppLink(
+      SORA_CONFIG.whatsappNumber,
       `¡Hola Sora Cocina Casera! Tengo una consulta sobre mi pedido #${order?.order_number || rawId}.`
     );
-    return `https://wa.me/${SORA_CONFIG.whatsappNumber}?text=${text}`;
   }, [order, rawId]);
 
   return (
@@ -1035,9 +1035,10 @@ export default function PublicOrderTrackingPage() {
 
               {/* Botón WhatsApp para enviar comprobante */}
               <a
-                href={`https://wa.me/${SORA_CONFIG.whatsappNumber}?text=${encodeURIComponent(
+                href={buildWhatsAppLink(
+                  SORA_CONFIG.whatsappNumber,
                   `¡Hola Sora Cocina Casera! Adjunto mi comprobante de pago de la Orden #${order.order_number} (${formatCurrency(order.total)}).`
-                )}`}
+                )}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full py-3 px-4 rounded-2xl bg-whatsapp hover:bg-[#20bd5a] text-white font-bold text-xs flex items-center justify-center space-x-2 shadow-md shadow-whatsapp/20 active:scale-95 transition-all"
