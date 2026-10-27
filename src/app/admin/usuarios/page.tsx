@@ -18,6 +18,7 @@ import {
   isValidUuid,
   generateUuid,
 } from '@/lib/storage';
+import { getLocalDateString } from '@/lib/utils';
 import {
   UserCog,
   UserPlus,
@@ -373,7 +374,7 @@ export default function GestionUsuariosPage() {
       role: inviteRole,
       is_active: true,
       permissions: invitePermissions,
-      created_at: new Date().toISOString().split('T')[0],
+      created_at: getLocalDateString(),
     };
 
     try {

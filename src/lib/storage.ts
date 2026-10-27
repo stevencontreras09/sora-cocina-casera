@@ -1,6 +1,7 @@
 'use client';
 
 import { Order, Client, ClientAddress, Expense, Profile, MenuItem, InventoryItem, InventoryUnit } from '@/types/database.types';
+import { getLocalDateString } from '@/lib/utils';
 
 // Comprobación de formato UUID estándar de Postgres
 export function isValidUuid(id: string | null | undefined): boolean {
@@ -1246,7 +1247,7 @@ export function calculateOrderUrgency(order: Order, now: Date = new Date()): Ord
     };
   }
 
-  const todayStr = now.toISOString().split('T')[0];
+  const todayStr = getLocalDateString(now);
 
   // Si está programado para una fecha futura
   if (order.delivery_date && order.delivery_date > todayStr) {
@@ -1260,6 +1261,19 @@ export function calculateOrderUrgency(order: Order, now: Date = new Date()): Ord
       borderClass: 'border-indigo-200',
       badgeClass: 'bg-indigo-50 text-indigo-800 border-indigo-200',
       bgTintClass: 'bg-indigo-50/15',
+    };
+  }
+
+  // Si está programado para una fecha pasada y aún sigue pendiente
+  if (order.delivery_date && order.delivery_date < todayStr) {
+    return {
+      urgencyLevel: 'overdue',
+      diffMinutes: -999,
+      badgeLabel: `🚨 VENCIDO (${order.delivery_date.split('-').slice(1).join('/')})`,
+      isBlinking: true,
+      borderClass: 'border-rose-500 ring-2 ring-rose-500/40 animate-pulse',
+      badgeClass: 'bg-rose-600 text-white border-rose-600 font-bold animate-pulse',
+      bgTintClass: 'bg-rose-50/70',
     };
   }
 

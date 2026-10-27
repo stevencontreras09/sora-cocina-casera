@@ -132,15 +132,14 @@ export default function ClientesPage() {
     saveStoredAddresses([...newAddressesToAdd, ...getStoredAddresses()]);
   };
 
-  // Cargar clientes con combinación inteligente que PRESERVA todas las direcciones locales
   // Cargar clientes con combinación inteligente que PRESERVA 100% las direcciones locales
-  const fetchClients = async () => {
+  const fetchClients = async (silent: boolean = false) => {
     try {
-      setIsLoading(true);
+      if (!silent) setIsLoading(true);
 
       // Carga inmediata de respaldo para que la UI nunca esté vacía
       const localCached = getStoredClients();
-      if (localCached.length > 0) {
+      if (localCached.length > 0 && !silent) {
         setClients(localCached);
       }
 
@@ -169,14 +168,63 @@ export default function ClientesPage() {
       const cached = getStoredClients();
       if (cached.length > 0) setClients(cached);
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchClients();
+    fetchClients(false);
+
+    // Canal en tiempo real para clientes y direcciones
+    const channel = supabase
+      .channel('clientes-realtime-sync')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'clients' },
+        () => {
+          fetchClients(true);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'client_addresses' },
+        () => {
+          fetchClients(true);
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          setTimeout(() => fetchClients(true), 2000);
+        }
+      });
+
+    // Re-sincronización inmediata al volver a la pestaña o encender el iPad
+    const handleWakeSync = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchClients(true);
+      }
+    };
+
+    window.addEventListener('focus', handleWakeSync);
+    window.addEventListener('online', handleWakeSync);
+    document.addEventListener('visibilitychange', handleWakeSync);
+
+    // Sondeo periódico suave en segundo plano para sincronización entre dispositivos
+    const pollInterval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchClients(true);
+      }
+    }, 15000);
+
+    return () => {
+      window.removeEventListener('focus', handleWakeSync);
+      window.removeEventListener('online', handleWakeSync);
+      document.removeEventListener('visibilitychange', handleWakeSync);
+      clearInterval(pollInterval);
+      supabase.removeChannel(channel);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [supabase]);
 
   const showFeedback = (text: string, type: 'success' | 'error' = 'success') => {
     setFeedbackMessage({ text, type });
@@ -589,7 +637,7 @@ export default function ClientesPage() {
 
           <div className="flex items-center space-x-2 flex-wrap gap-y-2">
             <button
-              onClick={fetchClients}
+              onClick={() => fetchClients(false)}
               disabled={isLoading}
               className="p-2.5 rounded-xl border border-border-sora bg-white text-text-sora hover:bg-bg-sora text-xs font-semibold transition-all shadow-sm active:scale-95"
               title="Refrescar lista"

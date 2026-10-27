@@ -12,7 +12,7 @@ import {
   OrderStatus,
   MenuItem,
 } from '@/types/database.types';
-import { formatCurrency, cleanPhoneNumber, buildWhatsAppLink } from '@/lib/utils';
+import { formatCurrency, cleanPhoneNumber, buildWhatsAppLink, getLocalDateString } from '@/lib/utils';
 import {
   saveStoredOrders,
   getStoredOrders,
@@ -120,9 +120,9 @@ export default function VentasPage() {
   const [deliveryUserId, setDeliveryUserId] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
 
-  // Horario y fecha de entrega
-  const todayStr = new Date().toISOString().split('T')[0];
-  const [deliveryDate, setDeliveryDate] = useState<string>(todayStr);
+  // Horario y fecha de entrega (según zona horaria local de República Dominicana)
+  const [todayStr, setTodayStr] = useState<string>(() => getLocalDateString());
+  const [deliveryDate, setDeliveryDate] = useState<string>(() => getLocalDateString());
   const [deliveryTime, setDeliveryTime] = useState<string>('');
   const [isScheduled, setIsScheduled] = useState<boolean>(false);
   const [productionReminderTime, setProductionReminderTime] = useState<string>('60m');
@@ -156,8 +156,9 @@ export default function VentasPage() {
   const [autoDeductInventory, setAutoDeductInventory] = useState(true);
 
   // Cargar datos (Supabase + Respaldo Local Auto-guardado)
-  const loadData = async () => {
-    setIsLoadingOrders(true);
+  const loadData = async (silent: boolean = false) => {
+    if (!silent) setIsLoadingOrders(true);
+    setTodayStr(getLocalDateString());
     try {
       // 1. Cargar Clientes y Direcciones con fusión segura (CERO pérdida de direcciones)
       const { data: clientsData } = await supabase
@@ -245,16 +246,16 @@ export default function VentasPage() {
       const cached = getStoredOrders();
       if (cached.length > 0) setOrders(cached);
     } finally {
-      setIsLoadingOrders(false);
+      if (!silent) setIsLoadingOrders(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    loadData(false);
 
-    // Sincronización en tiempo real vía WebSockets para la tabla 'orders'
+    // Sincronización en tiempo real vía WebSockets para Pedidos, Clientes y Direcciones
     const channel = supabase
-      .channel('ventas-orders-realtime')
+      .channel('ventas-realtime-sync')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'orders' },
@@ -304,9 +305,50 @@ export default function VentasPage() {
           }
         }
       )
-      .subscribe();
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'clients' },
+        () => {
+          loadData(true);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'client_addresses' },
+        () => {
+          loadData(true);
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.warn('Realtime reconnecting status:', status);
+          setTimeout(() => loadData(true), 2000);
+        }
+      });
+
+    // Sincronización inmediata al volver a la app o encender el iPad
+    const handleWakeSync = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        loadData(true);
+      }
+    };
+
+    window.addEventListener('focus', handleWakeSync);
+    window.addEventListener('online', handleWakeSync);
+    document.addEventListener('visibilitychange', handleWakeSync);
+
+    // Sondeo periódico en segundo plano para garantizar sincronización entre dispositivos
+    const pollInterval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        loadData(true);
+      }
+    }, 12000);
 
     return () => {
+      window.removeEventListener('focus', handleWakeSync);
+      window.removeEventListener('online', handleWakeSync);
+      document.removeEventListener('visibilitychange', handleWakeSync);
+      clearInterval(pollInterval);
       supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1140,7 +1182,7 @@ export default function VentasPage() {
             </button>
 
             <button
-              onClick={loadData}
+              onClick={() => loadData(false)}
               disabled={isLoadingOrders}
               className="p-2.5 rounded-xl border border-border-sora bg-white text-text-sora hover:bg-bg-sora text-xs font-semibold transition-all shadow-xs flex items-center space-x-1.5"
               title="Refrescar pedidos y clientes"
@@ -1532,7 +1574,7 @@ export default function VentasPage() {
                       setIsScheduled(true);
                       const d = new Date();
                       d.setDate(d.getDate() + 1);
-                      setDeliveryDate(d.toISOString().split('T')[0]);
+                      setDeliveryDate(getLocalDateString(d));
                       setDeliveryTime('13:00');
                     }}
                     className={`py-2 px-1 text-center rounded-xl text-xs font-bold border transition-all ${

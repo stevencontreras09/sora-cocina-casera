@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Order } from '@/types/database.types';
 import { triggerKitchenAlert } from '@/lib/audioAlerts';
-import { buildWhatsAppLink } from '@/lib/utils';
+import { buildWhatsAppLink, getLocalDateString } from '@/lib/utils';
 import {
   Clock,
   Flame,
@@ -40,8 +40,8 @@ export function ProductionReminderAlerts({
     return st === 'pendiente' || st === 'en preparacion';
   });
 
-  // Fecha de hoy YYYY-MM-DD
-  const todayStr = new Date().toISOString().split('T')[0];
+  // Fecha de hoy YYYY-MM-DD local
+  const todayStr = getLocalDateString();
   const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
 

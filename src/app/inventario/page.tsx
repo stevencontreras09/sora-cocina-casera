@@ -13,7 +13,7 @@ import {
   getStoredExpenses,
   saveStoredExpenses,
 } from '@/lib/storage';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, getLocalDateString } from '@/lib/utils';
 import {
   Boxes,
   PlusCircle,
@@ -115,7 +115,7 @@ export default function InventarioPage() {
       amount: totalCost,
       category: purchaseTargetItem.category === 'empaques' ? 'empaques' : 'insumos',
       description: `Compra de ${purchaseTargetItem.name} (${addedQty} ${purchaseTargetItem.unit}) ${purchaseSupplier ? '- ' + purchaseSupplier : ''}`,
-      date: new Date().toISOString().split('T')[0],
+      date: getLocalDateString(),
       payment_method: purchasePaymentMethod,
       quantity: addedQty,
       unit: purchaseTargetItem.unit,

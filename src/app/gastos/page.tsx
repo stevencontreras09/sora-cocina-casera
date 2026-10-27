@@ -5,7 +5,7 @@ import { AppNavigation } from '@/components/layout/AppNavigation';
 import { useAuth } from '@/context/AuthContext';
 import { Expense, ExpenseCategory, InventoryItem, InventoryUnit } from '@/types/database.types';
 import { createClient } from '@/lib/supabase/client';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, getLocalDateString } from '@/lib/utils';
 import {
   saveStoredExpenses,
   getStoredExpenses,
@@ -57,7 +57,7 @@ export default function GastosPage() {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState<ExpenseCategory>('insumos');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(() => getLocalDateString());
   const [quantity, setQuantity] = useState('');
   const [unit, setUnit] = useState<InventoryUnit>('lb');
   const [loadToInventory, setLoadToInventory] = useState(false);

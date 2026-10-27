@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { AppNavigation } from '@/components/layout/AppNavigation';
 import { useAuth } from '@/context/AuthContext';
 import { createClient } from '@/lib/supabase/client';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, getLocalDateString } from '@/lib/utils';
 import { getStoredOrders, getStoredExpenses } from '@/lib/storage';
 import { triggerKitchenAlert } from '@/lib/audioAlerts';
 import {
@@ -83,7 +83,7 @@ export default function DashboardPage() {
     async function fetchDashboardData() {
       setIsLoading(true);
       try {
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = getLocalDateString();
 
         // 1. Consultar pedidos
         const { data: ordersData } = await supabase

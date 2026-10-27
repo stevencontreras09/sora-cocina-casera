@@ -27,6 +27,18 @@ export function cleanPhoneNumber(phone: string): string {
 }
 
 /**
+ * Obtiene la fecha local en formato 'YYYY-MM-DD' según la zona horaria del dispositivo,
+ * evitando el desplazamiento a UTC de toISOString() que después de las 8:00 PM (hora RD / UTC-4)
+ * adelantaba la fecha al día siguiente en el servidor o cliente.
+ */
+export function getLocalDateString(date: Date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
  * Genera un enlace directo a WhatsApp (api.whatsapp.com) para evitar que el acortador wa.me
  * corrompa los emojis (convirtiéndolos en ) durante la redirección HTTP 302 hacia el navegador.
  */
