@@ -20,6 +20,7 @@ import {
   generateUuid,
   ExtractedWhatsAppClient,
 } from '@/lib/storage';
+import { syncPendingClientsToSupabase } from '@/lib/sync';
 import {
   Users,
   UserPlus,
@@ -104,22 +105,21 @@ export default function ClientesPage() {
       newAddressesToAdd.push(addressRecord);
 
       try {
-        await supabase.from('clients').insert({
+        await supabase.from('clients').upsert({
           id: clientRecord.id,
           name: clientRecord.name,
           phone: clientRecord.phone,
-          notes: clientRecord.notes,
+          notes: clientRecord.notes || null,
         });
 
-        await supabase.from('client_addresses').insert({
+        await supabase.from('client_addresses').upsert({
           id: addressRecord.id,
           client_id: addressRecord.client_id,
           label: addressRecord.label,
           address: addressRecord.address,
-          reference: addressRecord.reference,
-          latitude: addressRecord.latitude,
-          longitude: addressRecord.longitude,
-          is_default: addressRecord.is_default,
+          reference: addressRecord.reference || null,
+          latitude: addressRecord.latitude || null,
+          longitude: addressRecord.longitude || null,
         });
       } catch (err) {
         console.warn('Guardado local de cliente importado:', clientRecord.name);
@@ -159,6 +159,11 @@ export default function ClientesPage() {
         addressesData || []
       );
       setClients(mergedAll);
+
+      // Auto-sincronizar en segundo plano clientes o direcciones que solo existían localmente
+      syncPendingClientsToSupabase(supabase).catch((e) =>
+        console.warn('Auto-sync clientes warn:', e)
+      );
     } catch (err) {
       console.warn('Cargando directorio desde respaldo seguro', err);
       const cached = getStoredClients();
@@ -241,29 +246,29 @@ export default function ClientesPage() {
 
       try {
         if (isValidUuid(editingClient.id)) {
-          await supabase
-            .from('clients')
-            .update({
+          await supabase.from('clients').upsert([
+            {
+              id: editingClient.id,
               name: clientData.name,
               phone: clientData.phone,
               notes: clientData.notes || null,
-            })
-            .eq('id', editingClient.id);
+            },
+          ]);
 
           // Si hay dirección actualizada en Supabase
           if (addressData && addressData.address.trim()) {
-            const defaultAddr =
+            const targetAddr =
               clientAddresses.find((a) => a.is_default) || clientAddresses[0];
-            if (defaultAddr && isValidUuid(defaultAddr.id)) {
+            if (targetAddr && isValidUuid(targetAddr.id)) {
               await supabase.from('client_addresses').upsert([
                 {
-                  id: defaultAddr.id,
+                  id: targetAddr.id,
                   client_id: editingClient.id,
                   label: addressData.label || 'Casa',
                   address: addressData.address,
                   reference: addressData.reference || null,
-                  latitude: addressData.latitude || null,
-                  longitude: addressData.longitude || null,
+                  latitude: addressData.latitude ?? null,
+                  longitude: addressData.longitude ?? null,
                 },
               ]);
             }
@@ -323,7 +328,7 @@ export default function ClientesPage() {
       try {
         const { error: clientInsertErr } = await supabase
           .from('clients')
-          .insert([
+          .upsert([
             {
               id: newClientId,
               name: clientData.name,
@@ -333,16 +338,16 @@ export default function ClientesPage() {
           ]);
 
         if (clientInsertErr) {
-          console.warn('Nota Supabase clients insert:', clientInsertErr.message);
+          console.warn('Nota Supabase clients upsert:', clientInsertErr.message);
         }
 
         if (newAddressPayload) {
           const { error: addrInsertErr } = await supabase
             .from('client_addresses')
-            .insert([newAddressPayload]);
+            .upsert([newAddressPayload]);
 
           if (addrInsertErr) {
-            console.warn('Nota Supabase client_addresses insert:', addrInsertErr.message);
+            console.warn('Nota Supabase client_addresses upsert:', addrInsertErr.message);
           }
         }
       } catch (err) {
@@ -402,16 +407,31 @@ export default function ClientesPage() {
 
       try {
         if (isValidUuid(editingAddress.id)) {
+          // Asegurar que el cliente existe en Supabase primero
+          if (isValidUuid(activeClientForAddress.id)) {
+            await supabase.from('clients').upsert([
+              {
+                id: activeClientForAddress.id,
+                name: activeClientForAddress.name,
+                phone: activeClientForAddress.phone,
+                notes: activeClientForAddress.notes || null,
+              },
+            ]);
+          }
+
           await supabase
             .from('client_addresses')
-            .update({
-              label: addressData.label,
-              address: addressData.address,
-              reference: addressData.reference || null,
-              latitude: addressData.latitude || null,
-              longitude: addressData.longitude || null,
-            })
-            .eq('id', editingAddress.id);
+            .upsert([
+              {
+                id: editingAddress.id,
+                client_id: activeClientForAddress.id,
+                label: addressData.label,
+                address: addressData.address,
+                reference: addressData.reference || null,
+                latitude: addressData.latitude ?? null,
+                longitude: addressData.longitude ?? null,
+              },
+            ]);
         }
       } catch (err) {
         console.warn('Actualización local de dirección');
@@ -463,7 +483,7 @@ export default function ClientesPage() {
           latitude: addressData.latitude || null,
           longitude: addressData.longitude || null,
         };
-        const { error: insertErr } = await supabase.from('client_addresses').insert([payload]);
+        const { error: insertErr } = await supabase.from('client_addresses').upsert([payload]);
         if (insertErr) {
           console.warn('Nota Supabase client_addresses:', insertErr.message);
         }

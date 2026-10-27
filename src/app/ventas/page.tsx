@@ -31,6 +31,11 @@ import {
   archiveDeliveredOrders,
   deductOrderIngredientsFromInventory,
 } from '@/lib/storage';
+import {
+  syncOrderToSupabase,
+  syncPendingOrdersToSupabase,
+  syncPendingClientsToSupabase,
+} from '@/lib/sync';
 import { triggerKitchenAlert } from '@/lib/audioAlerts';
 import { ProductionReminderAlerts } from '@/components/alerts/ProductionReminderAlerts';
 import {
@@ -170,6 +175,11 @@ export default function VentasPage() {
       );
       setClients(mergedClients);
 
+      // Sincronizar en segundo plano clientes y direcciones locales con Supabase
+      syncPendingClientsToSupabase(supabase).catch((e) =>
+        console.warn('Auto-sync clients warn:', e)
+      );
+
       // 2. Cargar Repartidores
       const { data: driversData } = await supabase
         .from('profiles')
@@ -186,20 +196,33 @@ export default function VentasPage() {
         );
       }
 
-      // 3. Cargar Pedidos
+      // 3. Cargar Pedidos con fusión inteligente y sincronización automática
       const { data: ordersData } = await supabase
         .from('orders')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (ordersData && ordersData.length > 0) {
-        setOrders(ordersData as Order[]);
-        saveStoredOrders(ordersData as Order[]);
-      } else {
-        const cachedOrders = getStoredOrders();
-        if (cachedOrders.length > 0) {
-          setOrders(cachedOrders);
-        }
+      const supabaseOrders = (ordersData as Order[]) || [];
+      const cachedOrders = getStoredOrders();
+
+      // Encontrar pedidos locales (creados en iPad u otro navegador) que no existan aún en Supabase
+      const unsyncedOrders = cachedOrders.filter(
+        (cached) =>
+          !supabaseOrders.some(
+            (db) => db.id === cached.id || (cached.order_number && db.order_number === cached.order_number)
+          )
+      );
+
+      // Fusión garantizada: pedidos locales pendientes + pedidos remotos de Supabase
+      const mergedOrders = [...unsyncedOrders, ...supabaseOrders];
+      setOrders(mergedOrders);
+      saveStoredOrders(mergedOrders);
+
+      // Sincronizar en segundo plano pedidos pendientes con Supabase si los hay
+      if (unsyncedOrders.length > 0) {
+        syncPendingOrdersToSupabase(supabase).catch((e) =>
+          console.warn('Auto-sync orders warn:', e)
+        );
       }
 
       // 4. Intentar cargar Menú de platos desde store_settings en Supabase si existe
@@ -432,30 +455,31 @@ export default function VentasPage() {
     }
 
     try {
-      await supabase.from('clients').insert([
+      await supabase.from('clients').upsert([
         {
           id: newClient.id,
           name: newClient.name,
           phone: newClient.phone,
-          notes: newClient.notes,
+          notes: newClient.notes || null,
         },
       ]);
       if (newClient.addresses && newClient.addresses[0]) {
         const addr = newClient.addresses[0];
-        await supabase.from('client_addresses').insert([
+        await supabase.from('client_addresses').upsert([
           {
             id: addr.id,
-            client_id: addr.client_id,
+            client_id: newClient.id,
             label: addr.label,
             address: addr.address,
-            reference: addr.reference,
-            latitude: addr.latitude,
-            longitude: addr.longitude,
-            is_default: true,
+            reference: addr.reference || null,
+            latitude: addr.latitude ?? null,
+            longitude: addr.longitude ?? null,
           },
         ]);
       }
-    } catch (_) {}
+    } catch (e) {
+      console.warn('Nota guardado de cliente nuevo:', e);
+    }
 
     handleSelectClientFromCombobox(newClient);
     setIsNewClientModalOpen(false);
@@ -936,25 +960,9 @@ export default function VentasPage() {
       saveStoredOrders(updatedList);
 
       try {
-        if (isValidUuid(editingOrder.id)) {
-          await supabase
-            .from('orders')
-            .update({
-              client_id: isValidUuid(currentClient.id) ? currentClient.id : undefined,
-              client_name: currentClient.name,
-              client_phone: currentClient.phone,
-              address: finalAddress,
-              items: items,
-              total: totalCalculated,
-              payment_method: paymentMethod,
-              payment_status: paymentStatus,
-              delivery_date: deliveryDate,
-              notes: notes || null,
-            })
-            .eq('id', editingOrder.id);
-        }
+        await syncOrderToSupabase(supabase, updatedOrder);
       } catch (err) {
-        console.warn('Orden actualizada en respaldo local');
+        console.warn('Orden actualizada en respaldo local:', err);
       }
 
       setEditingOrder(null);
@@ -1023,71 +1031,9 @@ export default function VentasPage() {
       saveStoredOrders(updatedList);
 
       try {
-        const supabasePayload: any = {
-          id: newOrderId,
-          order_number: orderNumber,
-          client_name: currentClient.name,
-          client_phone: currentClient.phone,
-          address: finalAddress,
-          address_label: finalAddressLabel,
-          address_reference: finalAddressRef,
-          latitude: finalLat,
-          longitude: finalLng,
-          items: items,
-          total: totalCalculated,
-          payment_method: paymentMethod,
-          payment_status: paymentStatus,
-          status: 'Pendiente',
-          delivery_date: deliveryDate,
-          delivery_time: deliveryTime || null,
-          production_reminder_time: productionReminderTime,
-          is_scheduled: isScheduled || deliveryDate > todayStr,
-          notes: notes || null,
-        };
-
-        if (isValidUuid(currentClient.id)) supabasePayload.client_id = currentClient.id;
-        if (!isPickup && currentAddress && isValidUuid(currentAddress.id)) supabasePayload.address_id = currentAddress.id;
-        if (!isPickup && isValidUuid(deliveryUserId)) {
-          supabasePayload.delivery_user_id = deliveryUserId;
-          supabasePayload.delivery_user_name = driverObj?.name || null;
-        }
-
-        const { error } = await supabase.from('orders').insert([supabasePayload]);
-        if (error) {
-          console.warn('Nota Supabase orders insert:', error.message);
-          // Si la tabla orders en Supabase aún no tiene todas las columnas, reintentar con las columnas existentes
-          if (error.code === '42703') {
-            const fallbackItems = [
-              {
-                _metadata: {
-                  order_number: orderNumber,
-                  client_name: currentClient.name,
-                  client_phone: currentClient.phone,
-                  address: currentAddress?.address || 'Retiro en local',
-                  address_reference: currentAddress?.reference || null,
-                  notes: notes || null,
-                },
-                ...(items[0] || { name: 'Comanda de Cocina', quantity: 1, price: totalCalculated }),
-              },
-              ...items.slice(1),
-            ];
-
-            const fallbackPayload: any = {
-              id: newOrderId,
-              total: totalCalculated,
-              payment_method: paymentMethod,
-              payment_status: paymentStatus,
-              status: 'Pendiente',
-              items: fallbackItems,
-            };
-            if (isValidUuid(currentClient.id)) fallbackPayload.client_id = currentClient.id;
-            if (isValidUuid(deliveryUserId)) fallbackPayload.delivery_user_id = deliveryUserId;
-
-            await supabase.from('orders').insert([fallbackPayload]);
-          }
-        }
+        await syncOrderToSupabase(supabase, newOrder);
       } catch (err) {
-        console.warn('Orden guardada en caché local persistente');
+        console.warn('Orden guardada en caché local persistente:', err);
       }
 
       // Campana auditiva de cocina
