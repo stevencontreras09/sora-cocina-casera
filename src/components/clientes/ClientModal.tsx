@@ -334,7 +334,7 @@ export function ClientModal({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
+                <div className="min-w-0 w-full">
                   <label className="block text-xs font-semibold text-text-sora/80 mb-1 uppercase tracking-wider">
                     Nombre Completo *
                   </label>
@@ -348,12 +348,12 @@ export function ClientModal({
                       placeholder="Ej: Camila Valenzuela"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-sm placeholder:text-text-sora/30 focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora transition-all font-medium"
+                      className="w-full min-w-0 max-w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-sm placeholder:text-text-sora/30 focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora transition-all font-medium"
                     />
                   </div>
                 </div>
 
-                <div>
+                <div className="min-w-0 w-full">
                   <label className="block text-xs font-semibold text-text-sora/80 mb-1 uppercase tracking-wider">
                     Teléfono / WhatsApp *
                   </label>
@@ -367,7 +367,7 @@ export function ClientModal({
                       placeholder="+18091234567 o 8091234567"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-sm placeholder:text-text-sora/30 focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora transition-all font-medium"
+                      className="w-full min-w-0 max-w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-sm placeholder:text-text-sora/30 focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora transition-all font-medium"
                     />
                   </div>
                 </div>

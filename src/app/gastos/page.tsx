@@ -345,30 +345,30 @@ export default function GastosPage() {
             )}
 
             <form onSubmit={handleAddExpense} className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-              <div className="min-w-0">
+              <div className="min-w-0 w-full">
                 <label className="block text-xs font-semibold text-text-sora/80 mb-1 uppercase tracking-wider">
                   Fecha *
                 </label>
-                <div className="relative">
-                  <Calendar className="w-4 h-4 absolute left-3 top-3 text-text-sora/40 pointer-events-none" />
+                <div className="relative flex items-center w-full min-w-0">
+                  <Calendar className="w-4 h-4 absolute left-3.5 text-text-sora/40 pointer-events-none z-10" />
                   <input
                     type="date"
                     required
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    className="w-full min-w-0 pl-9 pr-3 py-2 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
+                    className="w-full min-w-0 max-w-full pl-10 pr-3.5 h-10 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
                   />
                 </div>
               </div>
 
-              <div className="min-w-0">
+              <div className="min-w-0 w-full">
                 <label className="block text-xs font-semibold text-text-sora/80 mb-1 uppercase tracking-wider">
                   Categoría *
                 </label>
                 <select
                   value={category}
                   onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
-                  className="w-full min-w-0 px-3 py-2 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
+                  className="w-full min-w-0 max-w-full px-3.5 h-10 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
                 >
                   <option value="insumos">Insumos</option>
                   <option value="empaques">Empaques</option>
@@ -379,12 +379,12 @@ export default function GastosPage() {
                 </select>
               </div>
 
-              <div className="min-w-0">
+              <div className="min-w-0 w-full">
                 <label className="block text-xs font-semibold text-text-sora/80 mb-1 uppercase tracking-wider">
                   Monto (RD$ DOP) *
                 </label>
-                <div className="relative">
-                  <DollarSign className="w-4 h-4 absolute left-3 top-3 text-text-sora/40 pointer-events-none" />
+                <div className="relative flex items-center w-full min-w-0">
+                  <DollarSign className="w-4 h-4 absolute left-3.5 text-text-sora/40 pointer-events-none z-10" />
                   <input
                     type="number"
                     min="0"
@@ -393,27 +393,27 @@ export default function GastosPage() {
                     placeholder="Ej: 850"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    className="w-full min-w-0 pl-9 pr-3 py-2 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
+                    className="w-full min-w-0 max-w-full pl-10 pr-3.5 h-10 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
                   />
                 </div>
               </div>
 
-              <div className="min-w-0">
+              <div className="min-w-0 w-full">
                 <label className="block text-xs font-semibold text-text-sora/80 mb-1 uppercase tracking-wider">
                   Creado Por (created_by)
                 </label>
-                <div className="relative">
-                  <UserIcon className="w-4 h-4 absolute left-3 top-3 text-text-sora/40 pointer-events-none" />
+                <div className="relative flex items-center w-full min-w-0">
+                  <UserIcon className="w-4 h-4 absolute left-3.5 text-text-sora/40 pointer-events-none z-10" />
                   <input
                     type="text"
                     disabled
                     value={profile?.full_name || 'Usuario Activo'}
-                    className="w-full min-w-0 pl-9 pr-3 py-2 rounded-xl border border-border-sora bg-bg-sora/20 text-text-sora/60 text-xs font-medium cursor-not-allowed"
+                    className="w-full min-w-0 max-w-full pl-10 pr-3.5 h-10 rounded-xl border border-border-sora bg-bg-sora/20 text-text-sora/60 text-xs font-medium cursor-not-allowed"
                   />
                 </div>
               </div>
 
-              <div className="sm:col-span-2 xl:col-span-4 min-w-0">
+              <div className="sm:col-span-2 xl:col-span-4 min-w-0 w-full">
                 <label className="block text-xs font-semibold text-text-sora/80 mb-1 uppercase tracking-wider">
                   Descripción del Egreso *
                 </label>
@@ -423,17 +423,17 @@ export default function GastosPage() {
                   placeholder="Detalla el producto, insumo o servicio adquirido..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full min-w-0 px-3.5 py-2.5 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs placeholder:text-text-sora/30 focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora"
+                  className="w-full min-w-0 max-w-full px-3.5 h-10 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs placeholder:text-text-sora/30 focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora"
                 />
               </div>
 
               {/* Unidad de Medida (Libras, Kilos, etc.) y Carga a Inventario */}
-              <div className="min-w-0">
+              <div className="min-w-0 w-full">
                 <label className="block text-xs font-semibold text-text-sora/80 mb-1 uppercase tracking-wider">
                   Cantidad / Libras (Opcional)
                 </label>
-                <div className="relative">
-                  <Scale className="w-4 h-4 absolute left-3 top-3 text-text-sora/40 pointer-events-none" />
+                <div className="relative flex items-center w-full min-w-0">
+                  <Scale className="w-4 h-4 absolute left-3.5 text-text-sora/40 pointer-events-none z-10" />
                   <input
                     type="number"
                     step="any"
@@ -441,19 +441,19 @@ export default function GastosPage() {
                     placeholder="Ej: 25.5"
                     value={quantity}
                     onChange={(e) => setQuantity(e.target.value)}
-                    className="w-full min-w-0 pl-9 pr-3 py-2 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
+                    className="w-full min-w-0 max-w-full pl-10 pr-3.5 h-10 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
                   />
                 </div>
               </div>
 
-              <div className="min-w-0">
+              <div className="min-w-0 w-full">
                 <label className="block text-xs font-semibold text-text-sora/80 mb-1 uppercase tracking-wider">
                   Unidad de Medida
                 </label>
                 <select
                   value={unit}
                   onChange={(e) => setUnit(e.target.value as InventoryUnit)}
-                  className="w-full min-w-0 px-3 py-2 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
+                  className="w-full min-w-0 max-w-full px-3.5 h-10 rounded-xl border border-border-sora bg-bg-sora/40 text-text-sora text-xs focus:outline-none focus:ring-2 focus:ring-primary-sora/20 focus:border-primary-sora font-medium"
                 >
                   <option value="lb">Libras (lb)</option>
                   <option value="kg">Kilogramos (kg)</option>
@@ -464,8 +464,8 @@ export default function GastosPage() {
                 </select>
               </div>
 
-              <div className="sm:col-span-2 min-w-0 flex flex-col justify-end">
-                <div className="p-2 rounded-xl bg-bg-sora/50 border border-border-sora flex items-center space-x-2">
+              <div className="sm:col-span-2 min-w-0 w-full flex flex-col justify-end">
+                <div className="h-10 px-3.5 rounded-xl bg-bg-sora/50 border border-border-sora flex items-center space-x-2">
                   <input
                     type="checkbox"
                     id="load_inv_check"

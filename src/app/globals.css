@@ -45,6 +45,62 @@
     appearance: textfield;
   }
 
+  /* Normalización universal para inputs de fecha, hora y controles en WebKit / iOS Safari / iPad */
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  input[type="month"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    background-clip: padding-box;
+    display: block;
+  }
+
+  /* Alinear el valor de fecha y hora siempre a la izquierda en Safari iOS / iPadOS con altura homogénea */
+  input[type="date"]::-webkit-date-and-time-value,
+  input[type="time"]::-webkit-date-and-time-value,
+  input[type="datetime-local"]::-webkit-date-and-time-value {
+    text-align: left !important;
+    display: flex !important;
+    align-items: center !important;
+    min-height: 1.4em !important;
+    height: 1.4em !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+
+  /* Indicador de calendario nativo WebKit limpio y proporcionado */
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.6;
+    padding: 2px;
+    margin-left: auto;
+  }
+
+  /* Evitar que select e inputs en general se desborden de sus celdas de grid en pantallas móviles y tablets */
+  input,
+  select,
+  textarea {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Prevenir el auto-zoom de iOS Safari (que se dispara con font-size < 16px en inputs) 
+     y que desplaza toda la pantalla hacia la derecha dejando elementos cortados y desencajados */
+  @media screen and (max-width: 1024px) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
+
   /* Asegurar que las sugerencias de Google Places y mapas se vean siempre por encima de modales */
   .pac-container {
     z-index: 99999 !important;

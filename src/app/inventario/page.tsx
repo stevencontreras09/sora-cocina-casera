@@ -624,14 +624,14 @@ export default function InventarioPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
+                <div className="min-w-0 w-full">
                   <label className="block text-xs font-semibold text-text-sora/80 mb-1 uppercase tracking-wider">
                     Categoría *
                   </label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value as any)}
-                    className="w-full px-3 py-2 rounded-xl border border-border-sora bg-bg-sora/30 text-text-sora text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary-sora/20"
+                    className="w-full min-w-0 max-w-full px-3 h-10 rounded-xl border border-border-sora bg-bg-sora/30 text-text-sora text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary-sora/20"
                   >
                     <option value="insumos">Insumos de Cocina</option>
                     <option value="empaques">Empaques / Despacho</option>
@@ -639,14 +639,14 @@ export default function InventarioPage() {
                   </select>
                 </div>
 
-                <div>
+                <div className="min-w-0 w-full">
                   <label className="block text-xs font-semibold text-text-sora/80 mb-1 uppercase tracking-wider">
                     Unidad de Medida *
                   </label>
                   <select
                     value={unit}
                     onChange={(e) => setUnit(e.target.value as InventoryUnit)}
-                    className="w-full px-3 py-2 rounded-xl border border-border-sora bg-bg-sora/30 text-text-sora text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary-sora/20"
+                    className="w-full min-w-0 max-w-full px-3 h-10 rounded-xl border border-border-sora bg-bg-sora/30 text-text-sora text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary-sora/20"
                   >
                     <option value="lb">Libras (lb)</option>
                     <option value="kg">Kilogramos (kg)</option>
@@ -659,7 +659,7 @@ export default function InventarioPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
+                <div className="min-w-0 w-full">
                   <label className="block text-xs font-semibold text-text-sora/80 mb-1 uppercase tracking-wider">
                     Stock Actual *
                   </label>
@@ -671,11 +671,11 @@ export default function InventarioPage() {
                     placeholder="Ej: 25.0"
                     value={currentStock}
                     onChange={(e) => setCurrentStock(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-border-sora bg-bg-sora/30 text-text-sora text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary-sora/20"
+                    className="w-full min-w-0 max-w-full px-3 h-10 rounded-xl border border-border-sora bg-bg-sora/30 text-text-sora text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary-sora/20"
                   />
                 </div>
 
-                <div>
+                <div className="min-w-0 w-full">
                   <label className="block text-xs font-semibold text-text-sora/80 mb-1 uppercase tracking-wider">
                     Mínimo de Alerta *
                   </label>
@@ -687,7 +687,7 @@ export default function InventarioPage() {
                     placeholder="Ej: 8.0"
                     value={minAlertStock}
                     onChange={(e) => setMinAlertStock(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-border-sora bg-bg-sora/30 text-text-sora text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary-sora/20"
+                    className="w-full min-w-0 max-w-full px-3 h-10 rounded-xl border border-border-sora bg-bg-sora/30 text-text-sora text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary-sora/20"
                   />
                 </div>
               </div>
@@ -779,7 +779,7 @@ export default function InventarioPage() {
 
             <form onSubmit={handleSaveQuickPurchase} className="space-y-3.5">
               <div className="grid grid-cols-2 gap-3">
-                <div>
+                <div className="min-w-0 w-full">
                   <label className="block text-xs font-semibold text-text-sora/80 mb-1 uppercase tracking-wider">
                     Cantidad ({purchaseTargetItem.unit}) *
                   </label>
@@ -791,11 +791,11 @@ export default function InventarioPage() {
                     placeholder="Ej: 10"
                     value={purchaseQuantity}
                     onChange={(e) => setPurchaseQuantity(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-border-sora bg-bg-sora/30 text-text-sora text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary-sora/20"
+                    className="w-full min-w-0 max-w-full px-3 h-10 rounded-xl border border-border-sora bg-bg-sora/30 text-text-sora text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary-sora/20"
                   />
                 </div>
 
-                <div>
+                <div className="min-w-0 w-full">
                   <label className="block text-xs font-semibold text-text-sora/80 mb-1 uppercase tracking-wider">
                     Total Pagado (RD$) *
                   </label>
@@ -807,7 +807,7 @@ export default function InventarioPage() {
                     placeholder="Ej: 2200"
                     value={purchaseCost}
                     onChange={(e) => setPurchaseCost(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-border-sora bg-bg-sora/30 text-text-sora text-xs font-bold text-primary-sora focus:outline-none focus:ring-2 focus:ring-primary-sora/20"
+                    className="w-full min-w-0 max-w-full px-3 h-10 rounded-xl border border-border-sora bg-bg-sora/30 text-text-sora text-xs font-bold text-primary-sora focus:outline-none focus:ring-2 focus:ring-primary-sora/20"
                   />
                 </div>
               </div>

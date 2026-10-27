@@ -1588,7 +1588,7 @@ export default function VentasPage() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                  <div>
+                  <div className="min-w-0 w-full">
                     <label className="block text-[11px] font-semibold text-text-sora/70 mb-1">
                       Fecha de Entrega
                     </label>
@@ -1600,11 +1600,11 @@ export default function VentasPage() {
                         setDeliveryDate(e.target.value);
                         if (e.target.value > todayStr) setIsScheduled(true);
                       }}
-                      className="w-full px-3 py-2 rounded-xl border border-border-sora bg-white text-text-sora text-xs focus:outline-none focus:ring-1 focus:ring-primary-sora font-medium"
+                      className="w-full min-w-0 max-w-full px-3 h-10 rounded-xl border border-border-sora bg-white text-text-sora text-xs focus:outline-none focus:ring-1 focus:ring-primary-sora font-medium"
                     />
                   </div>
 
-                  <div>
+                  <div className="min-w-0 w-full">
                     <label className="block text-[11px] font-semibold text-text-sora/70 mb-1">
                       Hora Prometida de Entrega
                     </label>
@@ -1613,7 +1613,7 @@ export default function VentasPage() {
                       value={deliveryTime}
                       onChange={(e) => setDeliveryTime(e.target.value)}
                       placeholder="Ej: 12:30"
-                      className="w-full px-3 py-2 rounded-xl border border-border-sora bg-white text-text-sora text-xs focus:outline-none focus:ring-1 focus:ring-primary-sora font-medium"
+                      className="w-full min-w-0 max-w-full px-3 h-10 rounded-xl border border-border-sora bg-white text-text-sora text-xs focus:outline-none focus:ring-1 focus:ring-primary-sora font-medium"
                     />
                   </div>
                 </div>
@@ -2190,12 +2190,12 @@ export default function VentasPage() {
                         className="w-full pl-8 pr-2.5 py-1.5 rounded-xl border border-border-sora bg-white text-text-sora text-xs placeholder:text-text-sora/40 focus:outline-none focus:ring-1 focus:ring-primary-sora"
                       />
                     </div>
-                    <div className="relative">
+                    <div className="relative min-w-0">
                       <input
                         type="date"
                         value={archiveDateFilter}
                         onChange={(e) => setArchiveDateFilter(e.target.value)}
-                        className="w-full px-2.5 py-1.5 rounded-xl border border-border-sora bg-white text-text-sora text-xs focus:outline-none focus:ring-1 focus:ring-primary-sora"
+                        className="w-full min-w-0 max-w-full px-2.5 h-9 rounded-xl border border-border-sora bg-white text-text-sora text-xs focus:outline-none focus:ring-1 focus:ring-primary-sora"
                       />
                     </div>
                   </div>
